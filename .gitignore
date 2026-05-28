@@ -46,3 +46,6 @@ data/sample_videos/*.avi
 
 # Streamlit cache
 .streamlit/secrets.toml
+
+# Claude Code local metadata (sessions, plans, locks)
+.claude/
