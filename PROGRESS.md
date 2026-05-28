@@ -2,8 +2,8 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-28
-**현재 단계**: 계획 문서 v3 확정 (대회 룰 재검증 완료). Day 1 작업 착수 가능 상태.
+**최종 갱신**: 2026-05-28 (세션 4 — Day 1 거의 완주 + Day 3 보너스)
+**현재 단계**: Day 1 5/6 완료 (Task 1.6 영상 대기). Day 3 Task 3.1·3.2 보너스 완료 (페르소나 페어 완성).
 
 ---
 
@@ -158,13 +158,60 @@ Devpost 홈페이지의 "Gemini 3" 마케팅 카피와 "Google Cloud Agent Build
 
 ---
 
+## 🗓️ 세션 4 (2026-05-28 저녁) — Day 1 완주 + Day 3 보너스
+
+### 사용자 완료 (브라우저 작업)
+- ✅ **Task 1.1** GCP — 프로젝트 `formforge-prod` + 결제 + API 4개 + Firestore Native mode (us-central1) + 서비스 계정 `formforge-sa` + 권한 4개 (Agent Platform User / Cloud Datastore User / Storage Object Admin / Cloud Run Invoker) + JSON 키
+- ✅ **Task 1.2** Phoenix Cloud — 가입 + `formforge-prod` 프로젝트 + API key
+- ✅ **Task 1.5** GitHub — `alsgur9865-sketch/formforge-ai` (Public, MIT License About 섹션 자동 표시)
+
+### Claude Code 완료
+- ✅ **Task 1.4** Hello World — `agents/hello_world.py`. ADK + Phoenix 자동 계측 end-to-end 동작 확인. Phoenix Cloud trace 검증 통과.
+- ✅ **FormForge 전용 venv** — `./venv` 생성 (다른 프로젝트 `hermes-agent` venv가 활성화되어 있어서 격리 필요). 글로벌 Python 3.11.9로 명시 생성. requirements.txt 18개 패키지 + 의존성 설치.
+- ✅ **첫 git commit + push** (`715717f`) — 15 files. service-account.json/.env 누락 검증. Repo: https://github.com/alsgur9865-sketch/formforge-ai
+- 🎁 **Day 3 Task 3.1 보너스** — `agents/encourager.py` + `tests/test_encourager.py` + `tests/sample_pose_data.json`. EncouragerOutput Pydantic. 한국어 응답 + warmth/detail 파라미터. 페르소나 룰 100% 충족 (수치 기반 칭찬·next-step opportunity·ONE focus·warm tone).
+- 🎁 **Day 3 Task 3.2 보너스** — `agents/scrutinizer.py` + `tests/test_scrutinizer.py`. ScrutinizerOutput Pydantic (primary_risk + secondary_concerns + required_action). **injury_history 자동 인식 → severity 상향** (사용자 `lower_back_strain_2025` → 요추 보상 작용 mechanism 자동 인용). PhD biomechanics 페르소나 완벽.
+
+### 발견된 이슈 + 해결
+
+| # | 이슈 | 해결 |
+|---|---|---|
+| 1 | 다운받은 `service-account.json` 실제 파일명이 `service-account.json.json` (Windows 확장자 숨김 함정) | `mv`로 수정. 사용자에게 "파일 확장명 표시" 옵션 안내. |
+| 2 | 다른 프로젝트의 venv(`hermes-agent`)가 활성화 상태 | FormForge 전용 venv 새로 생성. 글로벌 Python 경로로 명시적 호출. |
+| 3 | `gemini-2.5-pro` 호출 시 **429 RESOURCE_EXHAUSTED** (AI Studio free tier limit=0) | **Vertex AI 모드로 전환** — `.env`에 `GOOGLE_GENAI_USE_VERTEXAI=True` + `GOOGLE_CLOUD_LOCATION=us-central1` 추가. service-account.json 인증으로 호출. GCP 크레딧 사용. `.env.example`도 동일 갱신. |
+
+### Phoenix Cloud trace 현황 (세션 4 종료 시점, Scrutinizer 호출 후 4건)
+- Hello World (5.7s, 521 tok, <$0.01)
+- Encourager 429 실패 시도 (3.2s, 0 tok, error_code 캡처됨 — 관측성 만점)
+- Encourager Vertex 성공 (19.3s, 2984 tok, $0.01)
+- Scrutinizer Vertex 성공 — primary_risk.severity = "high", 요추 부상 이력 자동 연결
+- 누적 Cost ~$0.02. P50 5.7s, P99 19s.
+
+### Day 1 마무리 상태
+| Day 1 Task | 상태 |
+|---|---|
+| 1.1 GCP | ✅ |
+| 1.2 Phoenix | ✅ |
+| 1.3 셋업 | ✅ |
+| 1.4 Hello World | ✅ |
+| 1.5 GitHub | ✅ |
+| 1.6 MediaPipe smoke | 🟡 코드·환경 준비 완료. **샘플 영상 대기** (data/sample_videos/squat_demo.mp4) |
+
+영상 도착 시 즉시 실행 가능:
+```
+./venv/Scripts/python.exe agents/pose_mediapipe.py data/sample_videos/squat_demo.mp4 squat
+```
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 1. **이 파일 먼저 읽기**
-2. **사용자 Task 1.1/1.2/1.5 완료 여부 확인**
-3. 완료 시: Task 1.4 (Hello World) 즉시 진행 → Phoenix Cloud trace 1개 확인
-4. 샘플 영상 + 패키지 설치 완료 시: Task 1.6 실행 검증 (`python agents/pose_mediapipe.py data/sample_videos/squat_demo.mp4`)
-5. **(선택) 5/29 02:00 KST Phoenix MCP 5분 라이브 세션 녹화 시청** — 트랙 이해도 +
+2. **Task 1.6 샘플 영상** 확인 후 즉시 실행 (위 명령) → 30초 영상 5s 이내 acceptance 검증
+3. **Day 2 Task 2.1** — `storage/firestore_client.py` 작성 (init / create_user / get_user_persona_state). Firestore Native mode 이미 셋업됨, service account 권한도 OK.
+4. **Day 2 Task 2.2** — `storage/cloud_storage_client.py` 영상 업로드 헬퍼
+5. (선택) Day 3 Task 3.3 — Encourager·Scrutinizer 한 번에 호출하는 sequential pipeline (Day 8 토론 로직 사전 작업)
+6. (선택) 5/29 02:00 KST Phoenix MCP 5분 라이브 세션 녹화 시청
 
 ---
 
@@ -182,8 +229,8 @@ Devpost 홈페이지의 "Gemini 3" 마케팅 카피와 "Google Cloud Agent Build
 
 | Phase | Day | 핵심 목표 | 상태 |
 |---|---|---|---|
-| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | ⏭️ |
-| Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | ⏭️ |
+| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟡 Day 1 거의 완료 (1.6 영상만 대기) |
+| Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟡 Task 3.1·3.2 보너스 선완료 |
 | Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | ⏭️ |
 | Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | ⏭️ |
 | **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | ⏭️ |
