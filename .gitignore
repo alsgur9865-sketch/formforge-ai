@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Secrets / credentials (절대 commit 금지)
+.env
+.env.local
+.env.*.local
+service-account.json
+*.json.key
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Uploaded videos (개발용. 운영은 Cloud Storage)
+data/sample_videos/*.mp4
+data/sample_videos/*.mov
+data/sample_videos/*.avi
+!data/sample_videos/.gitkeep
+
+# Cloud Run / build artifacts
+.dockerignore.bak
+*.log
+
+# Streamlit cache
+.streamlit/secrets.toml
