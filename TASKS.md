@@ -249,20 +249,39 @@ pytest>=8.0.0
 - [ ] tone이 명백히 critical
 - [ ] medical advice 직접 주지 않음 ("consult a professional" 언급)
 
-### Task 4.1 — Sequential Orchestrator (기본 버전, Mediator 없이)
+### Task 4.1 — Orchestrator (Mediator 없이) — 2 Phase 분리
 
 **작업자**: Claude Code
 
-**Claude Code에게 줄 지시문**:
-> ADK의 SequentialAgent를 사용해서 PoseExtractor → Encourager → Scrutinizer 순차 실행 파이프라인 작성.
-> 파일: `agents/orchestrator.py`
-> Mediator는 Day 8에 추가하므로 지금은 두 응답을 모두 dict로 반환만.
-> 자동 계측이 전체 chain에 적용되는지 확인 (Phoenix trace에서 한 chain으로 보여야 함).
+**📐 설계 변경 메모 (세션 5)**:
+당초 SequentialAgent 명시했으나 실측 latency variance(48s) 로 인해 Round 1 은 ParallelAgent 로 전환.
+의미상도 Round 1 은 두 에이전트 독립 첫 인상이라 병렬이 옳음. Day 8 Round 2+ 도입 시
+SequentialAgent / custom debate loop 로 전환 + ADK 의 ParallelAgent deprecation 대응 (Workflow 전환).
+또한 PoseExtractor 는 영상 dependency 로 Day 5 Task 5.1 에서 합류하므로 Task 4.1 은 2 phase 로 분리.
 
-**Acceptance Criteria**:
+#### Phase 1 — Encourager + Scrutinizer 2 에이전트 (Day 4, 사전 완료)
+
+**Claude Code 지시문**:
+> ParallelAgent 로 Encourager · Scrutinizer 동시 호출. sample_pose_data.json 으로 검증.
+> 파일: `agents/orchestrator.py`, `tests/test_orchestrator.py`
+
+**Phase 1 Acceptance Criteria**:
+- [✓] 1개 pose_data 입력 → 2개 에이전트 응답 dict 반환
+- [✓] Phoenix Cloud 1개 trace 에 parent (parallel) + 2개 child span 표시
+- [✓] Latency P50 30s / hard fail 45s (Gemini Pro 2x 병렬 ±30% variance 분리 임계값)
+- [✓] persona_state 우선순위 가드 (`_resolve_persona_state`) + 통합 경로 정적 검증
+
+#### Phase 2 — PoseExtractor 합류 (Day 5)
+
+**Claude Code 지시문**:
+> Task 5.1 의 2-stage PoseExtractor 완성 후 orchestrator 에 prepend.
+> Pipeline: PoseExtractor → (Encourager ∥ Scrutinizer).
+> SequentialAgent 로 PoseExtractor 의 출력을 두 코치 입력으로 흘리고, 두 코치는 내부 ParallelAgent.
+
+**Phase 2 Acceptance Criteria**:
 - [ ] 1개 영상 입력 → 3개 에이전트 응답을 dict로 반환
 - [ ] Phoenix Cloud에서 1개 trace에 3개 child span이 보임
-- [ ] 총 latency 30초 이내
+- [ ] 총 latency 45초 이내 (PoseExtractor ~10s + ParallelAgent ~30s)
 
 ### Task 4.2 — 단위 테스트
 

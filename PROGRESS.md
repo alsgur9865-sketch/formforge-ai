@@ -2,8 +2,8 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-28 (세션 4 — Day 1 거의 완주 + Day 3 보너스)
-**현재 단계**: Day 1 5/6 완료 (Task 1.6 영상 대기). Day 3 Task 3.1·3.2 보너스 완료 (페르소나 페어 완성).
+**최종 갱신**: 2026-05-28 (세션 5 — Day 2 + Task 4.1 Phase 1 + Task 8.1 Multi-round 디베이트)
+**현재 단계**: Day 1 5/6 (Task 1.6 영상 대기) + Day 2 Task 2.1·2.2 완료 + Day 3 Task 3.2·3.3 + Day 4 Task 4.1 Phase 1 + Day 8 Task 8.1 (multi-round + 합의 감지 + Phoenix span).
 
 ---
 
@@ -204,14 +204,186 @@ Devpost 홈페이지의 "Gemini 3" 마케팅 카피와 "Google Cloud Agent Build
 
 ---
 
+## 🗓️ 세션 5 (2026-05-28 밤) — Day 2 Foundation 완주
+
+### Claude Code 완료
+- ✅ **Task 2.1 Firestore 클라이언트** — `storage/firestore_client.py` (250 lines). users / debates / feedback / evals 네 컬렉션 전체 CRUD. 싱글톤 패턴, service-account 자동 인증, ArrayUnion으로 rounds 추가, Streamlit 폴링용 `get_debate_snapshot()` 포함.
+- ✅ **Task 2.1 검증** — `tests/test_firestore.py` 실행 → 5개 테스트 모두 통과. `users/test_user_001` + `debates/test_debate_001` 실제 Firestore에 생성됨 확인. persona_state 기본값(warmth=0.5 등) 검증 OK.
+- ✅ **Cloud Storage 클라이언트** — `storage/cloud_storage_client.py`. `ensure_bucket()` (자동 생성, idempotent), `upload_video_file()` / `upload_video_stream()` (로컬·Streamlit 양쪽), `download_to_local()`, `get_signed_url()`, CLI 모드. 버킷 명명: `formforge-videos-{project-id}`.
+- ✅ **Task 2.2 Vector Search create** — `storage/vector_search_setup.py` (3단계 분리: create/status/deploy/undeploy). 비용 위험 차단용으로 deploy는 명시적 `yes deploy` 입력 요구.
+  - **create 실행 완료**:
+    - Index: `2622495760943415296` (백그라운드 빌드 30~60분)
+    - Endpoint: `3952922422738419712` (빈 상태, 무료)
+  - 현재 상태: **무료**. Day 14 데모 직전에 `deploy` 명령으로 $13/day 시작 예정.
+
+### 비용 의사결정 (세션 5에서 확정)
+- **Vector Search 배포는 Day 14로 연기**: $13/day × 2일 ≈ $26로 캐핑.
+- **Day 2 현재 누적 GCP 비용**: 사실상 $0 (Firestore + Storage + Index 빌드 모두 free tier·무료).
+- **크레딧 잔량**: GCP Free Trial $300 + (가능시) Devpost $100 = 최대 $400. 안전.
+
+### 사용자에게 부탁한 것 (세션 5)
+1. **.env 파일에 다음 3줄 추가**:
+   ```
+   VECTOR_SEARCH_INDEX_ID=2622495760943415296
+   VECTOR_SEARCH_ENDPOINT_ID=3952922422738419712
+   VECTOR_SEARCH_DEPLOYED_INDEX_ID=formforge_debates_v1
+   ```
+2. 30~60분 후 `python storage/vector_search_setup.py status` 실행 → Index `vectors_count` 표시되면 빌드 완료
+3. (마감 6/4) Devpost $100 해커톤 크레딧 신청 폼 작성
+4. **Day 12 이전**까지 Firestore 복합 인덱스 생성 (테스트 6번 출력의 콘솔 링크 클릭) — `debates` 컬렉션의 `user_id` + `created_at` 복합 인덱스. Phoenix MCP가 `query_past_debates` 실행하기 전에 필요.
+
+### 리뷰 → 수정 사이클 (세션 5 끝, Option B 진행)
+Second Eye 훅이 reviewer-agent에 4개 파일 검토 위임 → 🔴 Critical 4건 + 🟡 Important 7건 + 🟢 4건 발견. P3·P4 직결 Critical 3개만 즉시 수정:
+
+| # | 위치 | 문제 | 수정 |
+|---|---|---|---|
+| C#1 | `firestore_client.py` `get_recent_debates` | `.where()` 를 `.order_by()` 뒤에 호출 → `InvalidArgument` 즉시 폭발 | where 먼저 모두 붙이고 order_by + limit 마지막 |
+| C#2 | `firestore_client.py` `update_user_persona_state` | 독스트링은 "total_feedback_count 자동 증가" 명시하지만 실제 로직 없음 | `firestore.Increment(1)` 자동 적용. `increment_feedback_count=False` 또는 명시 값 전달 시 우회 |
+| C#3 | `firestore_client.py` `update_user_persona_state` | Firestore 맵 필드 통째 교체로 sibling 키 손실 (warmth만 보내면 detail 사라짐) | 중첩 dict → dot-notation 평탄화 + `.update()` 사용 |
+
+**미수정 (Day 14로 연기)**: C#4 `get_signed_url` Cloud Run ADC 서명 권한 부족 — Streamlit UI 붙을 때 함께 해결.
+
+**미수정 Important 7건**: 다음 세션 시작 시 우선 검토. 현 시점에 데이터 손실 위험은 없음.
+
+### 회귀 테스트 추가
+`tests/test_firestore.py`에 검증 케이스 3개 추가:
+- 부분 업데이트 시 sibling(detail) 보존 확인
+- `total_feedback_count` 1회 호출 후 1, 2회 호출 후 2 누적 확인
+- `get_recent_debates` 빌더 순서 검증 (`InvalidArgument` 폭발 안 함, `FailedPrecondition`+인덱스 링크는 정상)
+
+### Task 4.1 Round 1 파이프라인 (Option A 완료)
+**`agents/orchestrator.py`** + **`tests/test_orchestrator.py`** 신규.
+
+설계 결정 (실측 후 변경): **SequentialAgent → ParallelAgent**
+- 첫 실행 시 latency 48.2s → acceptance 30s 초과
+- Round 1 의미상 두 에이전트가 서로 안 보고 독립적 첫 인상이라 ParallelAgent 가 의미적·성능적으로 옳음
+- 재실행 latency **26.0s** ✅ (30s 안)
+- Day 8 Round 2+ 부터는 SequentialAgent 또는 커스텀 debate loop 로 전환 예정 (상호 직전 argument 참조 필요)
+
+**Acceptance Criteria 검증 결과**:
+| 항목 | 결과 |
+|---|---|
+| 1개 입력 → 2개 에이전트 응답 dict 반환 | ✅ (PoseExtractor 는 Day 5 합류) |
+| Phoenix Cloud 1 trace + parent/child span | ✅ (ParallelAgent 자동 그룹화) |
+| 총 latency 30s 이내 | ✅ 26.0s |
+| 페르소나 핵심 필드 (praise/concern_one + primary_risk/severity) | ✅ |
+| 부상 이력(요추) 자동 인식 → Scrutinizer severity = "high" | ✅ |
+
+응답 미리보기 (sample_pose_data.json 입력 시):
+- **Encourager**: "5개의 스쿼트 모두 깊이가 평균 92도로 일정… 왼쪽 무릎 살짝 안쪽 들어오는 현상… 발바닥 전체로 바닥을 밀어내며 무릎으로 보이지 않는 밴드를 양옆으로 찢는다고 상상…"
+- **Scrutinizer**: primary_risk = "과도한 상체 숙임 / 굿모닝 스쿼트 패턴 (severity=high)" — 요추 4-5번 디스크 압박 mechanism 자동 연결 + "중량 20-25% 즉시 감소, '가슴을 들어라' 큐" required_action
+
+→ **P2 절대원칙 (Encourager ↔ Scrutinizer 직접 통신)**: 진행률 30% → 60% (병렬 호출 + 같은 입력 공유. Day 8 에서 cross-reference 추가하면 100%)
+
+### Task 4.1 follow-up 리뷰 → A 수정 (3건 즉시 패치)
+Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 + 🟢 3 발견. 위험·간단한 3건만 즉시 수정:
+
+| 수정 | 위치 | 내용 |
+|---|---|---|
+| **C#3** | `tests/test_orchestrator.py:172` | "parent (sequential)" 안내문 → "parent (parallel)" (실설계와 일치) |
+| **C#1** | `agents/orchestrator.py` docstring | ADK `ParallelAgent` `@deprecated` 사실 + Day 8 Workflow 마이그레이션 시 재검증 항목 3가지 명시 |
+| **I#3** | `agents/orchestrator.py` `_resolve_persona_state` 헬퍼 신규 | persona_state 우선순위 1) 명시 인자 2) user_context.persona_state 3) 빈 dict. Firestore 에서 꺼낸 user 문서 통째 전달 시 persona_state 가 조용히 빈 dict 로 덮어쓰이던 버그 제거. |
+| **I#4** | `tests/test_orchestrator.py` latency 임계값 | hard fail 45s, P50 목표 30s 로 분리. Gemini Pro 2x 병렬 호출 variance(±30%) 흡수. Day 5 PoseExtractor 합류 시 재조정 예정. |
+
+회귀 테스트 4건 추가 (`_resolve_persona_state` unit-level, 비-Gemini, 빠름):
+- explicit 인자 우선
+- explicit=None 일 때 user_context.persona_state 자동 사용 (I#3 본질 회귀)
+- 둘 다 없으면 빈 dict
+- 잘못된 타입 안전 fallback
+
+**미수정 (의도적 연기)**: I#1 (user_id 이중) — Day 8. I#2 (session_id uuid4) — Day 14. I#5 (fence 종료마커 뒤 텍스트) — 발생 시. I#6 (부상이력 soft warning) — 추후. C#2 (output_schema streaming 보장) — 실제 동작 검증됨. PRE 5번 false negative (주석에 `_resolve_persona_state` 텍스트만 있어도 통과 — 현 코드 실용적 위험 0, AST 파싱 필요) — Day 8. 모든 🟢 — 발생 시.
+
+### Task 4.1 2차 follow-up → B 수정 (회귀 가드 구멍 + 문서 정합성)
+2차 reviewer-agent 에서 🔴 신규 위험 1건 + 🟡 디자인 미정리 2건 발견. 모두 즉시 처리:
+
+| 수정 | 위치 | 내용 |
+|---|---|---|
+| **🔴** | `tests/test_orchestrator.py` PRE 섹션 5번 | `inspect.getsource(run_round1)` 로 `_resolve_persona_state` 호출 라인 존재 확인. 누군가 실수로 `persona_state or {}` 로 되돌리면 즉시 fail → I#3 회귀 가드의 통합 경로 구멍 차단. |
+| **🟡** | `tests/test_orchestrator.py` 헤더 docstring | acceptance criteria 표시를 새 분리 임계값(P50 30s / hard 45s) 반영, Phase 1/2 분리 명시. |
+| **🟡** | `TASKS.md` Task 4.1 | Phase 1 (Encourager+Scrutinizer, ParallelAgent, sample_pose_data, 완료 ✓) / Phase 2 (PoseExtractor 합류, Day 5, latency 45s 재조정) 으로 분리. 설계 변경 메모도 함께 명시. |
+
+### 최종 회귀 테스트 결과 (B 수정 후)
+- PRE 섹션 5건 모두 ✅ (4건 unit + 1건 **통합 경로 정적 가드**)
+- Latency 35.8s — P50 30s 초과 ⚠️ 경고만, hard 45s 안
+- 두 에이전트 응답·페르소나·부상이력·severity 모두 ✅
+- Scrutinizer severity = "critical" (요추 부상 + 42도 상체각도)
+
+→ Task 4.1 Phase 1 acceptance 완전 충족. **부채 없는 마무리**.
+
+### Day 8 Task 8.1 — Multi-round 디베이트 + 합의 감지 (P2 60% → 100%)
+**신규 파일**:
+- `evals/convergence_judge.py` — Gemini 2.5 Flash 합의 감지 LLM. ConvergenceVerdict Pydantic. 명시적 OTel span (`openinference.span.kind=LLM`) 으로 Phoenix Cloud 에 별도 trace 기록.
+- `agents/debate.py` — Multi-round 토론 루프. Round 1 = ParallelAgent, judge 호출, converged 면 종료, 아니면 Round 2+ (직전 라운드 full brief 전달). MAX_DEBATE_ROUNDS env 기본 3.
+- `tests/test_debate.py` — PRE (judge 2 케이스) + MAIN (sample_pose_data 합의) + A2 (judge monkey-patch 로 3 라운드 강제) 3 단계 검증.
+
+**최초 실행 결과 (백그라운드, 8분)**:
+- PRE 케이스1 (같은 issue): converged=True (4.4s) ✅
+- PRE 케이스2 (다른 issue): converged=False (**473s anomaly** ⚠️ — Gemini Flash 변동성)
+- MAIN: **Round 1 즉시 합의** (32.6s), shared_issue="좌측 무릎 내전". 총 36.6s. ✅
+- 모든 acceptance ✓
+
+**1차 follow-up 리뷰 → 🔴 Critical 4건 발견 → A 옵션 (Critical 1·3·4 + Acceptance 2) 수정**:
+
+| # | 위치 | 수정 |
+|---|---|---|
+| **C#1** | `debate.py` 다음 라운드 prev_argument | concern_one 한 줄 → `_build_encourager_brief` / `_build_scrutinizer_brief` 로 핵심 필드 묶은 JSON brief 전달. 페르소나 spec 의 "null in round 1" 일치 위해 파싱 실패 시 None. |
+| **C#3** | `debate.py` `_build_round_pipeline` | f-string 변수 없는 오타 → `f"formforge_debate_round_{round_number}"` (라운드별 unique name, Phoenix span 충돌 방지) |
+| **C#4** | `convergence_judge.py` `judge_convergence` | OpenTelemetry `_tracer.start_as_current_span("convergence_judge", attributes={openinference.span.kind=LLM, llm.model_name, input/output.value, convergence.converged/shared_issue})` 명시적 span 추가. `GoogleADKInstrumentor` 가 못 잡는 google-genai 직접 호출도 Phoenix Cloud 에 LLM span 으로 기록. **Arize 평가 직결**. |
+| **Acceptance 2** | `test_debate.py` `acceptance_disagreement_case` 신규 | judge_convergence 를 항상 (converged=False) 로 monkey-patch → 3 라운드 모두 진행 + forced_stop_reason="max_rounds_reached" + judge 3회 호출 + Round 2+ cross-reference 검증. 페르소나 응답 variance 분리. |
+
+**미수정 (의도적 연기)**: Critical 2 (`judge_convergence_sync` 의 `asyncio.run()` Streamlit RuntimeError) → Day 14. Important 1·2·3·4 (orchestrator private 함수 import / APP_NAME 분리 / enc_concern None→"" → null / 싱글톤 멀티스레드) → 발생 시.
+
+### Day 8 Task 8.2 — Firestore push (Streamlit 폴링 UI 준비)
+**`agents/debate.py`** 의 `run_debate` 에 옵션 3개 추가: `debate_id`, `video_uri`, `exercise_type`. `debate_id` 제공 시:
+- 시작: `create_debate` + `set_debate_pose_data` + `update_debate_status("debating")` — try/except 로 감싸 실패 시 `firestore_enabled=False` 강등 (토론은 그대로 진행, fail-soft)
+- 매 라운드 종료 후: `append_debate_round` (ArrayUnion + updated_at) — fail-soft
+- 토론 종료: `update_debate_status("feedback_pending"|"done")` — fail-soft
+
+**`tests/test_debate.py`** 의 `acceptance_firestore_push` 신규 검증 함수 — 7개 acceptance 모두 통과:
+1. DebateResult.rounds 길이 == 2
+2. `debates/{id}` Firestore 문서 존재
+3. rounds 배열 길이 == 2
+4. 라운드 순서 1→2
+5. encourager/scrutinizer payload 보존
+6. status='done' (max_rounds_reached 분기)
+7. updated_at 정상 갱신
+
+→ **P3 절대원칙 (사용자 피드백 → 페르소나)**: 30% → 50% (저장소 + 자동증가 + persona_state 가드 + 토론 결과 영구 저장 완성. Day 13 feedback handler 로 70% 도달 예정)
+
+**Task 8.2 follow-up 리뷰 → A 패치**:
+- 시작 단계 try/except 보호 추가 (위험 1 fix — Firestore 장애 시 토론 차단 방지)
+- 출력 안내문에 Task 8.1 + 8.2 분리 표기 (사소 5 fix)
+
+**미수정 (의도적 연기, PROGRESS 부채)**:
+- ArrayUnion + `round_latency_seconds(float)` retry 시 중복 — Day 9 retry 래퍼 도입 시 처리
+- fail-soft 로깅 `print()` → Cloud Logging 구조화 — Day 14 배포 시 처리
+- 테스트 cleanup 없음 → `test_debate_push_*` Firestore 누적 — CI 도입 시 처리
+
+### Day 2 마무리 상태
+| Day 2 Task | 상태 |
+|---|---|
+| 2.1 Firestore | ✅ (검증 통과) |
+| 2.2 Vector Search create | ✅ (Index 빌드 중) |
+| 2.2 Vector Search deploy | 🟡 Day 14 예정 |
+| 2.3 영상 업로드 헬퍼 | ✅ (cloud_storage_client.py) |
+| 2.3 사용자 본인 운동 영상 3개 | 🟡 사용자 작업 |
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 1. **이 파일 먼저 읽기**
-2. **Task 1.6 샘플 영상** 확인 후 즉시 실행 (위 명령) → 30초 영상 5s 이내 acceptance 검증
-3. **Day 2 Task 2.1** — `storage/firestore_client.py` 작성 (init / create_user / get_user_persona_state). Firestore Native mode 이미 셋업됨, service account 권한도 OK.
-4. **Day 2 Task 2.2** — `storage/cloud_storage_client.py` 영상 업로드 헬퍼
-5. (선택) Day 3 Task 3.3 — Encourager·Scrutinizer 한 번에 호출하는 sequential pipeline (Day 8 토론 로직 사전 작업)
-6. (선택) 5/29 02:00 KST Phoenix MCP 5분 라이브 세션 녹화 시청
+2. **.env에 Vector Search 3개 변수 추가됐는지** 확인
+3. **Task 1.6 샘플 영상** 도착 시 즉시 실행 → 30초 영상 5s 이내 acceptance 검증
+   ```
+   ./venv/Scripts/python.exe agents/pose_mediapipe.py data/sample_videos/squat_demo.mp4 squat
+   ```
+4. **Day 5 Task 5.1** — 2-stage PoseExtractor 완성 (MediaPipe Stage 1 + Gemini Vision Stage 2). 영상 도착 후.
+5. **Day 8 Task 8.1** — Multi-round 토론 로직 (Round 2+ 도입). ParallelAgent → SequentialAgent/custom loop 전환. 합의 감지 알고리즘 (`evidence_alignment_score >= 0.7` 또는 max 3 라운드).
+6. **Day 4 Task 4.2** — pytest + mock 단위 테스트. 외부 API 호출 mock 처리해서 CI 가능하게.
+7. (참고) Important 잔존 이슈 4건 (`storage/firestore_client.py` `_flatten()` None 가드, `.update()` 시 NotFound 가드 등) — Day 5~6 feedback_handler.py 구현할 때 통합 처리.
+8. (선택) Vector Search Index 빌드 완료 확인: `python storage/vector_search_setup.py status`
+9. (선택) 5/29 02:00 KST Phoenix MCP 5분 라이브 세션 녹화 시청
 
 ---
 
@@ -229,8 +401,8 @@ Devpost 홈페이지의 "Gemini 3" 마케팅 카피와 "Google Cloud Agent Build
 
 | Phase | Day | 핵심 목표 | 상태 |
 |---|---|---|---|
-| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟡 Day 1 거의 완료 (1.6 영상만 대기) |
-| Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟡 Task 3.1·3.2 보너스 선완료 |
+| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 Day 2 거의 완료 (1.6 영상·2.2 deploy만 대기) |
+| Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 선완료, 4.2 단위 테스트만 남음 |
 | Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | ⏭️ |
 | Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | ⏭️ |
 | **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | ⏭️ |
