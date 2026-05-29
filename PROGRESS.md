@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-28 (세션 5 — Day 2 + 4.1 Phase 1 + 8.1 + 8.2 + commit 6acccfd push 완료)
-**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 Task 3.2·3.3 ✅ · Day 4 Task 4.1 Phase 1 ✅ · Day 8 Task 8.1·8.2 ✅
-**저장소 상태**: `origin/main` 과 동기 (`6acccfd feat: Day 2/4/8 — storage layer + adversarial debate w/ convergence & Firestore push`)
+**최종 갱신**: 2026-05-29 (세션 6 — Day 12 Task 12.1·12.2 + Day 9 Task 9.1. **P4 0%→70%, P5 0%→40%**)
+**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · **Day 9 Task 9.1 ✅** · **Day 12 Task 12.1·12.2 ✅**
+**저장소 상태**: 로컬 main 이 origin/main 보다 **4 커밋 앞섬 (push 대기)**. HEAD=`baa1b35`. 순서: 26def6f(docs)→02052bd(12.1)→746df6c(9.1)→baa1b35(12.2)
 
 ---
 
@@ -386,6 +386,72 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 
 ---
 
+## 🗓️ 세션 6 (2026-05-29) — Day 12 Phoenix MCP introspection + Day 9 Mediator
+
+> 영상 불필요 작업으로 P4(1등 결정 요소) 본격 착수. **P4 0%→70%, P5 0%→40%**.
+
+### 사용자 완료 (브라우저)
+- ✅ **Firestore 복합 인덱스 생성** — `debates`: `exercise_type` + `user_id` + `created_at` (Collection scope, Enabled 확인).
+  → `query_past_debates` 가 `source=error`(FailedPrecondition) → `source=firestore` 로 정상화 검증 완료.
+
+### Claude Code 완료
+
+**1) Task 12.1 — 커스텀 Phoenix MCP wrapper 스켈레톤** (commit `02052bd`, P4 0%→30%)
+- `mcp/phoenix_mcp_server.py` (524줄). FastMCP **3.3.1** 기반 커스텀 서버.
+- tool 2개: `query_past_debates`(Firestore consensus join) / `query_similar_safety_flags`(cross-user 위험 스캔).
+- Phoenix REST trace 는 **스켈레톤 미구현** → 항상 graceful fallback + 경고 span (Day 12+ 실연동).
+- Vector Search 미배포(Day 14) → Firestore 스캔 fallback.
+- stdio/http transport 전환(`PHOENIX_MCP_TRANSPORT`), Cloud Run `PORT` 대응.
+- P1: 서버 자체 Phoenix register → tool 호출이 TOOL span 으로 기록. P5: 모든 응답에 의료 면책.
+- 검증(`--selftest`): tool 2개 등록 OK + MCP 프로토콜 왕복(in-memory Client) OK +
+  `query_similar_safety_flags` 가 실제 과거 토론에서 "Knee Valgus Collapse" 매칭 found=1.
+
+**2) Task 9.1 — Mediator skeleton** (commit `746df6c`, P5 0%→40%)
+- `agents/mediator.py`. ADK Agent + output_schema(MediatorOutput) — encourager/scrutinizer 동일 패턴.
+- 출력: consensus + priority_actions[order,action,rationale] + disclaimer + round_count_used.
+- **P5 강제**: `_enforce_disclaimer` 로 LLM 이 면책 누락/변형 시 표준 한국어 문구 주입.
+- `tests/test_mediator.py` — P5 회귀 가드 7개 (Gemini 없이 ~2s).
+- 검증(`--selftest`): acceptance 5/5. Scrutinizer required_action 을 order 1(부상이력 근거),
+  Encourager actionable_tip 을 order 2 로 통합. latency 24.9s.
+
+**3) Task 12.2 — Mediator ↔ Phoenix MCP 연결** (commit `baa1b35`, P4 30%→70%) ⭐ 1등 결정 요소
+- `create_mediator_agent_with_mcp()`: MCPToolset(StdioConnectionParams)로 phoenix_mcp_server stdio subprocess 연결.
+- **ADK 제약 확정**: output_schema 를 쓰면 tool 호출 비활성화 → MCP 버전은 output_schema 없이
+  instruction JSON 강제 + `_parse_mediator_json`(fence/앞뒤 텍스트 방어).
+- `run_mediator_with_mcp()`: Gemini 자동 tool 호출 + `toolset.close()` 정리.
+- 검증(`--mcp`): **Gemini 2.5 Pro 가 query_past_debates + query_similar_safety_flags 를 자동 호출** 확인.
+  acceptance 4/4. latency 49.4s.
+
+### 발견된 이슈 + 해결
+| # | 이슈 | 해결 |
+|---|---|---|
+| 1 | 프로젝트 `mcp/` 폴더가 PyPI `mcp` 패키지를 shadow → `ModuleNotFoundError: mcp.types` | fastmcp import 를 sys.path 루트 추가 "전"에 배치. MCP 관련 import 는 함수 내부 lazy. |
+| 2 | stdio MCP 서버에서 print → JSON-RPC 채널(stdout) 오염 | 모든 로그를 stderr 로 (`_log`). |
+| 3 | ADK output_schema + tool 동시 불가 (ADK 공식) | MCP 버전 Mediator 는 output_schema 제거 + instruction JSON + 수동 파싱. |
+| 4 | tool call 캡처 안 됨 (`part.function_call` 직접 접근 실패) | `event.get_function_calls()` ADK 표준 헬퍼로 교체 → 정확히 캡처. |
+
+### 버전 메모 (이 세션에서 확정)
+- FastMCP **3.3.1** (`@mcp.tool`, `mcp.run()` / `mcp.run(transport="http", host, port)`, `list_tools()` async)
+- ADK **2.1.0** (`from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams`)
+
+### 미수정 (의도적 연기, PROGRESS 부채)
+- **Phoenix REST 실연동**: `_query_phoenix_traces` 스켈레톤 → P4 나머지 30%. arize-phoenix 패키지 + REST 인증 필요.
+- **past_debate_references 실데이터**: 같은 user 반복 업로드해야 채워짐 (현재 user_001 과거 debate 없어 []).
+- **Vertex vs API key 경로**: selftest 에서 `Using GOOGLE_API_KEY` — 세션 4 Vertex 전환과 다른 경로. 안정성 점검 필요(지금 동작은 함).
+- **asyncio.run() Streamlit 충돌**: `run_mediator_sync`/`run_mediator_with_mcp_sync` — Day 14 UI 통합 시 await 경로로.
+- **Mediator 미통합**: debate.py 토론 종료 후 Mediator 자동 호출 연결 아직 안 됨 (orchestrator 통합 필요).
+
+### 📊 절대원칙 진행률 (세션 6 종료 시점)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | ADK + 명시적 OTel span + MCP 서버 자체 계측 |
+| P2 Encourager ↔ Scrutinizer | **100%** | Round 1 Parallel + Round 2+ cross-reference |
+| P3 사용자 피드백 → 페르소나 | **50%** | Day 13 feedback handler 로 70% 예정 |
+| P4 Mediator + Phoenix MCP | **70%** | MCP wrapper + Mediator 자율 호출 ✅. 나머지: Phoenix REST 실연동 |
+| P5 의료 면책 | **40%** | Mediator disclaimer 강제 ✅. UI 전체 표시는 Day 14 |
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
@@ -403,11 +469,12 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 3. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator pipeline: PoseExtractor → (Encourager ∥ Scrutinizer). latency 45s 재조정.
 4. **Day 9 Task 9.2** — End-to-end dry run (영상 → 모든 단계 → Firestore + Phoenix).
 
-### 2. 영상 없이도 가능 (자정 후 작업 또는 영상 늦어질 때)
-1. **Day 9 Task 9.1** — Mediator skeleton (합의 후 두 입장 통합 + P5 disclaimer 도입). Phoenix MCP 자리만 placeholder. 1시간.
-2. **Day 12 Task 12.1** — Phoenix MCP wrapper 스켈레톤 (P4 0% → 30%). **1등 결정 요소**. 1.5~2시간.
+### 2. 영상 없이도 가능 (세션 6 에서 9.1·12.1·12.2 완료 → 다음 우선순위)
+1. **Mediator e2e 통합** — `debate.py` 토론 종료 후 `run_mediator_with_mcp` 자동 호출 + Firestore `set_debate_consensus` 저장. 토론→합의 골격 완성. ~1시간.
+2. **Day 12 P4 마무리 (70% → 100%)** — `_query_phoenix_traces` 실연동 (arize-phoenix 패키지 + REST 인증). + 같은 user 반복으로 `past_debate_references` 실데이터 검증.
 3. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%.
-4. **Day 4 Task 4.2** — pytest + mock 단위 테스트. CI 가능하게.
+4. **Day 12 Task 12.3** — MCP server Cloud Run 배포 준비 (`mcp/Dockerfile`, http transport 모드). Day 14 대비.
+5. **Day 4 Task 4.2** — pytest + mock 단위 테스트 정비. CI 가능하게.
 
 ### 3. 추후·선택
 - Vector Search Index 빌드 완료 확인: `python storage/vector_search_setup.py status` (`vectors_count` 보이면 빌드 끝)
@@ -420,11 +487,14 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 - **convergence_judge.py**: `judge_convergence_sync` asyncio.run() Streamlit 충돌 — Day 14 UI 통합 시
 - **orchestrator.py**: I#1 user_id 이중 / I#2 session_id uuid4 — Day 8 Mediator 추가 시 정리 가능
 - **test_orchestrator.py**: PRE 5번 false negative (inspect 정적 검사) — AST 파싱 필요, Day 14 이전 시간 남으면
+- **mediator.py**: `run_mediator_sync`/`run_mediator_with_mcp_sync` asyncio.run() Streamlit 충돌 — Day 14 UI 통합 시
+- **mediator.py**: Phoenix REST 실연동(`_query_phoenix_traces` 스켈레톤) — P4 마무리(70%→100%) 시
+- **Vertex vs API key 경로**: selftest 에서 GOOGLE_API_KEY 사용 — 안정성 점검 (지금 동작은 함)
 
 ### 5. 운영 메모
-- **Phoenix Cloud**: chain trace + llm trace (`convergence_judge`) 분리 정상 표시 — 스크린샷으로 검증됨
-- **GCP 누적 비용**: ~$0 추정 (Firestore + Storage free tier, Vector Search Index 빌드 무료, Gemini API ~$0.05)
-- **마감 D-15** (6/12 06:00 KST)
+- **Phoenix Cloud**: chain trace + llm trace(`convergence_judge`) + **Mediator span 아래 MCP tool call(query_past_debates / query_similar_safety_flags) child span** — Devpost 제출 영상용 핵심 스크린샷.
+- **GCP 누적 비용**: ~$0 추정 (Firestore + Storage free tier, Vector Search Index 빌드 무료, Gemini API ~$0.1)
+- **마감 D-14** (6/12 06:00 KST, 오늘 5/29 기준)
 
 ---
 
@@ -444,11 +514,11 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 |---|---|---|---|
 | Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 Day 2 거의 완료 (1.6 영상·2.2 deploy만 대기) |
 | Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 선완료, 4.2 단위 테스트만 남음 |
-| Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | ⏭️ |
-| Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | ⏭️ |
-| **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | ⏭️ |
+| Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | ⏭️ 영상 대기 |
+| Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · 9.2 e2e 통합만 남음 |
+| **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟡 Mediator e2e 통합 + 영상 합류하면 달성 |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
-| Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | ⏭️ |
+| Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2 ✅ (P4 70%)** · 12.3 배포준비만 남음 |
 | Self-Improvement | 13 (6/9) | LLM-as-a-Judge + 양방향 학습 | ⏭️ |
 | UI + Deploy | 14 (6/10) | Streamlit + Cloud Run 듀얼 배포 | ⏭️ |
 | Submit | 15 (6/11) | 영상 + Devpost | ⏭️ |
