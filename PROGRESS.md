@@ -2,8 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-28 (세션 5 — Day 2 + Task 4.1 Phase 1 + Task 8.1 Multi-round 디베이트)
-**현재 단계**: Day 1 5/6 (Task 1.6 영상 대기) + Day 2 Task 2.1·2.2 완료 + Day 3 Task 3.2·3.3 + Day 4 Task 4.1 Phase 1 + Day 8 Task 8.1 (multi-round + 합의 감지 + Phoenix span).
+**최종 갱신**: 2026-05-28 (세션 5 — Day 2 + 4.1 Phase 1 + 8.1 + 8.2 + commit 6acccfd push 완료)
+**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 Task 3.2·3.3 ✅ · Day 4 Task 4.1 Phase 1 ✅ · Day 8 Task 8.1·8.2 ✅
+**저장소 상태**: `origin/main` 과 동기 (`6acccfd feat: Day 2/4/8 — storage layer + adversarial debate w/ convergence & Firestore push`)
 
 ---
 
@@ -359,6 +360,21 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 - fail-soft 로깅 `print()` → Cloud Logging 구조화 — Day 14 배포 시 처리
 - 테스트 cleanup 없음 → `test_debate_push_*` Firestore 누적 — CI 도입 시 처리
 
+### 세션 5 마무리 (2026-05-28 ~23:50 KST)
+- ✅ **commit `6acccfd`** — 12 files, +2970/-17. .gitignore 에 `.claude/` 추가.
+- ✅ **push origin main 성공** (사용자가 직접 실행, main 직접 push 가 자동 차단되어 있음 — 안전 정책).
+- ✅ Phoenix Cloud UI 에서 `chain trace` + `llm trace (convergence_judge)` 분리 확인 (스크린샷 검증).
+- 🟡 **사용자 내일 운동 영상 촬영 예정** → Day 5 Task 5.1 진입 가능 상태.
+
+### 📊 절대원칙 진행률 (세션 5 종료 시점)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | ADK + 명시적 OTel span 둘 다 |
+| P2 Encourager ↔ Scrutinizer 통신 | **100%** | Round 1 ParallelAgent + Round 2+ cross-reference brief |
+| P3 사용자 피드백 → 페르소나 | **50%** | 저장소 + 자동증가 + persona 가드 + 토론 영구 저장. Day 13 feedback handler 로 70% |
+| P4 Mediator + Phoenix MCP | 0% | Day 12 본격 (1등 결정 요소) |
+| P5 의료 면책 | 0% | Day 14 UI 도입 시 |
+
 ### Day 2 마무리 상태
 | Day 2 Task | 상태 |
 |---|---|
@@ -372,18 +388,43 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 
 ## ⏭️ 다음 세션 시작 시 할 일
 
-1. **이 파일 먼저 읽기**
-2. **.env에 Vector Search 3개 변수 추가됐는지** 확인
-3. **Task 1.6 샘플 영상** 도착 시 즉시 실행 → 30초 영상 5s 이내 acceptance 검증
+### 0. 매번 먼저
+- **이 파일 먼저 읽기**
+- 영상 도착했는지 확인: `ls "data/sample_videos/"`
+- 가능하면 `.env` 에 `VECTOR_SEARCH_*` 3개 변수 추가됐는지 한 번 더 확인
+
+### 1. 영상 도착했을 때 우선순위
+1. **Task 1.6 검증**:
    ```
    ./venv/Scripts/python.exe agents/pose_mediapipe.py data/sample_videos/squat_demo.mp4 squat
    ```
-4. **Day 5 Task 5.1** — 2-stage PoseExtractor 완성 (MediaPipe Stage 1 + Gemini Vision Stage 2). 영상 도착 후.
-5. **Day 8 Task 8.1** — Multi-round 토론 로직 (Round 2+ 도입). ParallelAgent → SequentialAgent/custom loop 전환. 합의 감지 알고리즘 (`evidence_alignment_score >= 0.7` 또는 max 3 라운드).
-6. **Day 4 Task 4.2** — pytest + mock 단위 테스트. 외부 API 호출 mock 처리해서 CI 가능하게.
-7. (참고) Important 잔존 이슈 4건 (`storage/firestore_client.py` `_flatten()` None 가드, `.update()` 시 NotFound 가드 등) — Day 5~6 feedback_handler.py 구현할 때 통합 처리.
-8. (선택) Vector Search Index 빌드 완료 확인: `python storage/vector_search_setup.py status`
-9. (선택) 5/29 02:00 KST Phoenix MCP 5분 라이브 세션 녹화 시청
+   30초 영상 5s 이내 acceptance.
+2. **Day 5 Task 5.1** — 2-stage PoseExtractor 완성 (MediaPipe Stage 1 + Gemini Vision Stage 2). 영상으로 직접 검증.
+3. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator pipeline: PoseExtractor → (Encourager ∥ Scrutinizer). latency 45s 재조정.
+4. **Day 9 Task 9.2** — End-to-end dry run (영상 → 모든 단계 → Firestore + Phoenix).
+
+### 2. 영상 없이도 가능 (자정 후 작업 또는 영상 늦어질 때)
+1. **Day 9 Task 9.1** — Mediator skeleton (합의 후 두 입장 통합 + P5 disclaimer 도입). Phoenix MCP 자리만 placeholder. 1시간.
+2. **Day 12 Task 12.1** — Phoenix MCP wrapper 스켈레톤 (P4 0% → 30%). **1등 결정 요소**. 1.5~2시간.
+3. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%.
+4. **Day 4 Task 4.2** — pytest + mock 단위 테스트. CI 가능하게.
+
+### 3. 추후·선택
+- Vector Search Index 빌드 완료 확인: `python storage/vector_search_setup.py status` (`vectors_count` 보이면 빌드 끝)
+- Firestore 복합 인덱스 1회 생성 (PROGRESS 위쪽 콘솔 링크 — Day 12 Phoenix MCP `query_past_debates` 호출 전)
+
+### 4. 잔존 부채 (다음 세션에 자연스럽게 통합 처리)
+- **firestore_client.py**: I#3 `_flatten()` None 가드 / I#4 `.update()` NotFound 가드 — Day 13 `evals/feedback_handler.py` 구현 시
+- **debate.py**: ArrayUnion 중복 (round_latency_seconds float 포함) — Day 9 retry 래퍼 도입 시
+- **debate.py**: fail-soft `print()` → 구조화 로그 — Day 14 Cloud Run 배포 시
+- **convergence_judge.py**: `judge_convergence_sync` asyncio.run() Streamlit 충돌 — Day 14 UI 통합 시
+- **orchestrator.py**: I#1 user_id 이중 / I#2 session_id uuid4 — Day 8 Mediator 추가 시 정리 가능
+- **test_orchestrator.py**: PRE 5번 false negative (inspect 정적 검사) — AST 파싱 필요, Day 14 이전 시간 남으면
+
+### 5. 운영 메모
+- **Phoenix Cloud**: chain trace + llm trace (`convergence_judge`) 분리 정상 표시 — 스크린샷으로 검증됨
+- **GCP 누적 비용**: ~$0 추정 (Firestore + Storage free tier, Vector Search Index 빌드 무료, Gemini API ~$0.05)
+- **마감 D-15** (6/12 06:00 KST)
 
 ---
 
