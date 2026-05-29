@@ -130,13 +130,56 @@ The `disclaimer` field will be set by the system; you may leave it as-is.
 # Agent factory
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 페르소나 프롬프트 (MCP 버전) — Task 12.2
+#   ADK 제약: output_schema 를 쓰면 tool 호출이 막힌다 (ADK 공식).
+#   따라서 MCP 버전은 output_schema 없이 instruction 으로 JSON 을 강제하고,
+#   _parse_mediator_json 으로 견고하게 파싱한다.
+# ---------------------------------------------------------------------------
+
+MEDIATOR_INSTRUCTION_MCP = """\
+You are "The Mediator", the head coach who synthesizes the Encourager's and the
+Scrutinizer's perspectives into ONE coherent recommendation for the user.
+
+You have access to a Phoenix introspection tool set (query your own past traces):
+- query_past_debates(user_id, exercise_type, limit=5): retrieve THIS user's past debate consensus.
+- query_similar_safety_flags(safety_flag_name, limit=10): find how a similar risk was resolved before.
+
+You will receive a JSON object with: debate_summary (each round's Encourager output
+[praise, concern_one, actionable_tip] and Scrutinizer output [primary_risk, required_action]),
+converged, shared_issue, pose_data, user_context (user_id, injury_history, experience_level),
+and round_count.
+
+WORKFLOW — do this IN ORDER:
+1. Read both coaches' transcripts across all rounds.
+2. Call query_past_debates using user_context.user_id and pose_data.exercise_type.
+3. If the Scrutinizer flagged a primary_risk, call query_similar_safety_flags with that risk name.
+4. Resolve disagreements by weighing evidence + user_context. If the user has a relevant
+   injury_history, RAISE the priority of the Scrutinizer's safety action.
+5. Produce ONE `consensus` and an ordered `priority_actions` list (1 = first) that reflects
+   BOTH the Encourager's `actionable_tip` AND the Scrutinizer's `required_action`.
+6. Fill `past_debate_references` from the TOOL RESULTS only (use returned trace_ids / debate info).
+   If the tools return no past debates, use an empty array []. NEVER invent ids.
+
+Respond in Korean (한국어로).
+
+Output ONLY a JSON object — no markdown, no code fences, no text before/after — with EXACTLY:
+{
+  "agent": "mediator",
+  "consensus": "<korean string>",
+  "priority_actions": [{"order": 1, "action": "<korean>", "rationale": "<korean>"}],
+  "past_debate_references": [{"debate_id": "<string>", "date": "<string or null>", "outcome": "<string or null>"}],
+  "round_count_used": <integer>
+}
+Do NOT include a "disclaimer" field — the system adds it.
+"""
+
+
 def create_mediator_agent() -> Agent:
     """
-    The Mediator 에이전트 인스턴스를 만든다.
+    The Mediator 에이전트 인스턴스를 만든다 (output_schema 버전, MCP 없음).
 
-    Task 12.2 에서 이 함수에 Phoenix MCP tool(MCPToolset)을 추가하고,
-    output_schema 와 tool 동시 사용 가능 여부를 ADK 에서 재검증한다.
-    (Gemini controlled-generation + function-calling 호환성 이슈 가능 → 그때 점검)
+    스켈레톤/폴백용. MCP introspection 이 필요하면 create_mediator_agent_with_mcp() 사용.
 
     Returns:
         ADK Agent. orchestrator 가 토론 종료 후 1회 호출.
@@ -269,6 +312,150 @@ def run_mediator_sync(
     return asyncio.run(run_mediator(debate_result, pose_data, user_context))
 
 
+# ===========================================================================
+# Task 12.2 — Phoenix MCP introspection 연결 (output_schema 없는 tool 버전)
+# ===========================================================================
+
+def _parse_mediator_json(text: str) -> dict[str, Any]:
+    """
+    LLM 텍스트 응답에서 JSON 객체를 견고하게 추출.
+
+    output_schema 가 없으므로 (MCP tool 사용 위해) 모델이 markdown fence 나
+    앞뒤 설명을 붙일 수 있다. fence 제거 + 첫 '{' ~ 마지막 '}' 슬라이스로 방어.
+    """
+    import re
+
+    t = (text or "").strip()
+    fence = re.search(r"```(?:json)?\s*(.*?)```", t, re.DOTALL)
+    if fence:
+        t = fence.group(1).strip()
+    start, end = t.find("{"), t.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        t = t[start : end + 1]
+    return json.loads(t)
+
+
+def create_mediator_agent_with_mcp() -> tuple[Agent, Any]:
+    """
+    Phoenix MCP server 를 ADK tool 로 연결한 Mediator 를 만든다 (Task 12.2).
+
+    - output_schema 미사용 (ADK: output_schema 는 tool 호출을 비활성화).
+    - mcp/phoenix_mcp_server.py 를 stdio subprocess 로 띄워 MCPToolset 으로 연결.
+    - Gemini 가 query_past_debates / query_similar_safety_flags 를 자동 호출.
+
+    ⚠️ MCP 관련 import 는 함수 내부에서 (lazy). 모듈 최상단에 두면
+       프로젝트의 mcp/ 폴더가 PyPI mcp 패키지를 shadow 해 cwd=루트에서 import 가 깨진다.
+
+    Returns:
+        (agent, toolset). 호출자는 사용 후 `await toolset.close()` 로 정리.
+    """
+    import sys
+    from pathlib import Path
+
+    from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
+    from mcp import StdioServerParameters
+
+    project_root = Path(__file__).resolve().parent.parent
+    server_script = project_root / "mcp" / "phoenix_mcp_server.py"
+
+    toolset = MCPToolset(
+        connection_params=StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command=sys.executable,  # 현재 venv 의 python
+                args=[str(server_script)],
+                # stdio 모드로 뜨도록 (기본 stdio지만 명시)
+                env={**os.environ, "PHOENIX_MCP_TRANSPORT": "stdio"},
+            ),
+        ),
+        tool_filter=["query_past_debates", "query_similar_safety_flags"],
+    )
+
+    agent = Agent(
+        name="mediator",
+        model="gemini-2.5-pro",
+        description=(
+            "The Mediator — Head Coach (Phoenix MCP introspection). 토론을 통합하며 "
+            "자신의 과거 trace 를 query_past_debates / query_similar_safety_flags 로 쿼리."
+        ),
+        instruction=MEDIATOR_INSTRUCTION_MCP,
+        tools=[toolset],
+    )
+    return agent, toolset
+
+
+async def run_mediator_with_mcp(
+    debate_result: dict[str, Any],
+    pose_data: dict[str, Any],
+    user_context: dict[str, Any],
+) -> tuple[MediatorOutput, float, list[str]]:
+    """
+    Phoenix MCP introspection 을 사용하는 Mediator 실행 (Task 12.2).
+
+    Returns:
+        (MediatorOutput, latency_seconds, mcp_tool_calls)
+        mcp_tool_calls: Gemini 가 실제로 호출한 MCP tool 이름 목록 (검증/acceptance 용).
+    """
+    agent, toolset = create_mediator_agent_with_mcp()
+    payload = build_mediator_input_payload(debate_result, pose_data, user_context)
+
+    session_service = InMemorySessionService()
+    user_id = str(user_context.get("user_id") or "mediator_user")
+    session_id = f"mediator_mcp_{uuid.uuid4().hex[:8]}"
+    await session_service.create_session(
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
+    )
+    runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
+
+    user_msg = types.Content(
+        role="user",
+        parts=[types.Part(text=json.dumps(payload, ensure_ascii=False))],
+    )
+
+    tool_calls: list[str] = []
+    final_text: str | None = None
+    start = time.monotonic()
+    try:
+        async for event in runner.run_async(
+            user_id=user_id, session_id=session_id, new_message=user_msg
+        ):
+            # MCP tool 호출 캡처 — ADK Event 표준 헬퍼 사용
+            # (acceptance: trace 에 tool call 명시). part.function_call 직접 접근은
+            # ADK 이벤트 래핑과 맞지 않아 놓침 → get_function_calls() 가 정답.
+            for fc in event.get_function_calls() or []:
+                name = getattr(fc, "name", None)
+                if name:
+                    tool_calls.append(name)
+            if event.is_final_response() and event.content and event.content.parts:
+                final_text = "".join(p.text or "" for p in event.content.parts)
+    finally:
+        # MCP subprocess 정리
+        try:
+            await toolset.close()
+        except Exception:  # noqa: BLE001
+            pass
+    latency = time.monotonic() - start
+
+    if not final_text:
+        raise RuntimeError("Mediator(MCP) 가 최종 응답을 반환하지 않음.")
+
+    parsed = MediatorOutput.model_validate(_parse_mediator_json(final_text))
+    parsed = _enforce_disclaimer(parsed)  # P5
+    return parsed, latency, tool_calls
+
+
+def run_mediator_with_mcp_sync(
+    debate_result: dict[str, Any],
+    pose_data: dict[str, Any],
+    user_context: dict[str, Any],
+) -> tuple[MediatorOutput, float, list[str]]:
+    """동기 wrapper (CLI/테스트용)."""
+    import asyncio
+
+    return asyncio.run(
+        run_mediator_with_mcp(debate_result, pose_data, user_context)
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI (스모크 테스트)
 # ---------------------------------------------------------------------------
@@ -331,8 +518,8 @@ if __name__ == "__main__":
     if os.getenv("GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
-    if "--selftest" not in sys.argv:
-        print("사용법: python agents/mediator.py --selftest")
+    if "--selftest" not in sys.argv and "--mcp" not in sys.argv:
+        print("사용법: python agents/mediator.py [--selftest | --mcp]")
         raise SystemExit(0)
 
     debate = _mock_debate_result()
@@ -344,6 +531,27 @@ if __name__ == "__main__":
         "persona_state": {},
     }
 
+    # ---- Task 12.2: Phoenix MCP introspection 버전 ----
+    if "--mcp" in sys.argv:
+        m_out, m_latency, m_calls = run_mediator_with_mcp_sync(debate, pose, ctx)
+        print(json.dumps(m_out.as_dict(), ensure_ascii=False, indent=2))
+        print(f"\nLatency: {m_latency:.1f}s")
+        print(f"MCP tool calls (Gemini 자동 호출): {m_calls}")
+
+        m_checks = {
+            "MCP tool 1회 이상 호출 (trace 에 표시)": len(m_calls) >= 1,
+            "합의안(consensus) 생성": bool(m_out.consensus.strip()),
+            "priority_actions 1개 이상": len(m_out.priority_actions) >= 1,
+            "P5 의료 면책 포함": "의학 조언" in m_out.disclaimer,
+        }
+        print("\n=== Acceptance (Task 12.2) ===")
+        for name, ok in m_checks.items():
+            print(f"  {'✅' if ok else '❌'} {name}")
+        m_all = all(m_checks.values())
+        print(f"\n{'✅ Task 12.2 acceptance 통과' if m_all else '❌ 미충족 항목 있음'}")
+        raise SystemExit(0 if m_all else 1)
+
+    # ---- Task 9.1: output_schema 스켈레톤 버전 ----
     output, latency = run_mediator_sync(debate, pose, ctx)
     print(json.dumps(output.as_dict(), ensure_ascii=False, indent=2))
     print(f"\nLatency: {latency:.1f}s")
