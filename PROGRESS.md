@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-29 (세션 6 — Day 12 Task 12.1·12.2 + Day 9 Task 9.1 + **e2e 통합(run_full_session)**. P4 0%→70%, P5 0%→40%)
-**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · **Day 9 Task 9.1 + e2e 골격 ✅** · **Day 12 Task 12.1·12.2 ✅**
-**저장소 상태**: `26def6f`~`baa1b35`(5커밋) push 완료. 로컬에 **`ab43834`(e2e) + 이 docs 갱신 = 2커밋 push 대기**.
+**최종 갱신**: 2026-05-29 (세션 7 — **Day 12 P4 마무리 (70%→100%)**: query_* 실제 debate_id 반환 + Phoenix REST 실연동 + trace_id 루프 완성)
+**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · **Day 9 Task 9.1 + e2e 골격 ✅** · **Day 12 Task 12.1·12.2 ✅ (P4 100%)**
+**저장소 상태**: 로컬 **4커밋 push 대기** (`ab43834` e2e · `6d01d2f` docs · `0163340` P4-A · `8d5fabd` P4-B). push 는 사용자 직접(main 직접 push 차단).
 
 ---
 
@@ -463,6 +463,68 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 
 ---
 
+## 🗓️ 세션 7 (2026-05-29 저녁) — Day 12 P4 마무리 (70% → 100%) ⭐ 1등 결정 요소 완성
+
+> 영상 불필요 작업. 사용자가 "A+B 둘 다 100%" 선택 → introspection 루프 완성.
+
+### Claude Code 완료
+
+**A) query_* 가 실제 debate_id 반환** (commit `0163340`)
+- 문제: `get_recent_debates` 가 `snap.id` 를 버려서 Mediator LLM 이 created_at 으로 debate_id 를 합성 (P4 결함).
+- `firestore_client.get_recent_debates`: `snap.id` 를 `dict["debate_id"]` 로 보존.
+- `phoenix_mcp_server._summarize_debate` / `query_similar_safety_flags`: debate_id 포함.
+- `mediator.MEDIATOR_INSTRUCTION_MCP`: tool 의 debate_id 를 verbatim 복사 (합성 금지 강화).
+- 검증: `mcp --selftest` query_past_debates(found=2)/query_similar(found=3) 실제 doc id 반환.
+  `mediator --mcp` past_debate_references 가 `e2e_demo_1780051544` 등 실제 id (acceptance 4/4).
+- → Task 12.2 마지막 acceptance "past_debate_references 에 실제 trace ID" 충족.
+
+**B-2) Phoenix REST 실연동** (commit `8d5fabd`)
+- `_query_phoenix_traces` 스켈레톤(항상 PhoenixUnavailable) → **실구현**.
+- `arize-phoenix-client`(phoenix.client.Client) 로 Phoenix Cloud span 실조회.
+  base_url=`https://app.phoenix.arize.com/s/alsgur9865`, project=`formforge-prod`.
+- 프로젝트 span 조회 → input/output value 텍스트로 user_id/exercise_type best-effort 필터 → trace_id 목록.
+- 실패 시 PhoenixUnavailable → Firestore fallback 유지 (§5.3, P4 violation 회피).
+- `query_past_debates` 결과에 `phoenix_traces` + `phoenix_status="ok (N trace spans)"` 추가.
+- 검증: selftest 에서 phoenix_status "ok (5 trace spans)", phoenix_traces 에 실제 trace_id (mcp.query_* TOOL span).
+
+**B-1) orchestrator trace_id 실저장** (commit `8d5fabd`)
+- `_ensure_phoenix_registered`: register + GoogleADKInstrumentor 1회 (idempotent, fail-soft).
+  미등록 시 OTel trace_id 가 0(무효) → trace_id 저장 위해 필수. (기존엔 orchestrator/mediator 가 register 안 함, hello_world 만)
+- `run_full_session`: mediator 호출을 명시적 span(`mediator_consensus`)으로 감싸 trace_id 추출 →
+  `set_debate_consensus(trace_ids={"mediator_trace_id": ...})` 실저장 (기존 `{}` 하드코딩 제거).
+- `--full` acceptance 에 "Firestore trace_ids 저장(B-1)" 가드 추가.
+- 검증: `orchestrator --full` acceptance **7/7**, `trace_ids={'mediator_trace_id':'09278d...'}` 저장.
+
+### ⭐ introspection 루프 완성 (P4 본질)
+
+```
+Mediator 실행 → trace_id 저장(B-1) → 다음 토론 query_past_debates 가 실제 trace_id 반환(A) → Phoenix REST 로 재조회(B-2)
+```
+
+selftest 1회로 동시 확인: phoenix_status "ok (5 trace spans)" + debate_id=`e2e_demo_1780056106` + mediator_trace_id=`09278d...` 반환.
+
+### 발견 + 결정
+| # | 항목 | 처리 |
+|---|---|---|
+| 1 | orchestrator/mediator 가 Phoenix register 안 함 (hello_world 만) | `_ensure_phoenix_registered` 추가 — register 없으면 OTel trace_id 무효(0) |
+| 2 | full `arize-phoenix` 무거움 (pandas+graphql+sqlalchemy) | 경량 `arize-phoenix-client>=2.0.0` (185KB) 선택 — Cloud Run 배포 유리 |
+| 3 | Phoenix Cloud space 경로 | base_url = `.../s/alsgur9865` (PHOENIX_COLLECTOR_ENDPOINT) |
+
+### 버전/패키지 메모
+- `arize-phoenix-client` **2.7.0** — `from phoenix.client import Client`, `client.spans.get_spans_dataframe(project_identifier=, limit=)`.
+- DataFrame 컬럼: `context.trace_id`, `context.span_id`, `name`, `span_kind`, `attributes.*`. iterrows index=span_id.
+
+### 📊 절대원칙 진행률 (세션 7 종료 시점)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | ADK + OTel span + MCP 서버 자체 계측 + orchestrator register |
+| P2 Encourager ↔ Scrutinizer | **100%** | Round 1 Parallel + Round 2+ cross-reference |
+| P3 사용자 피드백 → 페르소나 | **50%** | Day 13 feedback handler 로 70% 예정 |
+| P4 Mediator + Phoenix MCP | **100%** ✅ | MCP wrapper + 자율 호출 + 실제 debate_id + Phoenix REST 실연동 + trace_id 루프 완성 |
+| P5 의료 면책 | **40%** | Mediator disclaimer 강제 ✅. UI 전체 표시는 Day 14 |
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
@@ -480,9 +542,9 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 3. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator pipeline: PoseExtractor → (Encourager ∥ Scrutinizer). latency 45s 재조정.
 4. **Day 9 Task 9.2** — End-to-end dry run (영상 → 모든 단계 → Firestore + Phoenix).
 
-### 2. 영상 없이도 가능 (e2e 통합까지 완료 → 다음 우선순위)
-1. **Day 12 P4 마무리 (70% → 100%)** — `_query_phoenix_traces` 실연동 (arize-phoenix 패키지 + REST 인증) + `query_*` 가 실제 debate_id 반환 (현재 LLM 합성). `past_debate_references` 정확도 ↑.
-2. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%.
+### 2. 영상 없이도 가능 (P4 100% 완료 → 다음 우선순위)
+1. ✅ **Day 12 P4 마무리 (70%→100%) 완료** (세션 7, `0163340`+`8d5fabd`) — query_* 실제 debate_id + Phoenix REST 실연동 + trace_id 루프.
+2. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%. ← **다음 1순위**
 3. **Day 12 Task 12.3** — MCP server Cloud Run 배포 준비 (`mcp/Dockerfile`, http transport 모드). Day 14 대비.
 4. **Day 4 Task 4.2** — pytest + mock 단위 테스트 정비 (`run_full_session` 포함). CI 가능하게.
 
@@ -500,9 +562,9 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 - **orchestrator.py**: I#1 user_id 이중 / I#2 session_id uuid4 — Day 8 Mediator 추가 시 정리 가능
 - **test_orchestrator.py**: PRE 5번 false negative (inspect 정적 검사) — AST 파싱 필요, Day 14 이전 시간 남으면
 - **mediator.py**: `run_mediator_sync`/`run_mediator_with_mcp_sync` asyncio.run() Streamlit 충돌 — Day 14 UI 통합 시
-- **mediator.py**: Phoenix REST 실연동(`_query_phoenix_traces` 스켈레톤) — P4 마무리(70%→100%) 시
-- **mcp/phoenix_mcp_server.py**: `query_*` 가 doc.id 미반환 → `past_debate_references.debate_id` 가 LLM 합성값. P4 마무리 시 실제 debate_id 반환.
+- ✅ **mcp/phoenix_mcp_server.py**: Phoenix REST 실연동(`_query_phoenix_traces`) + `query_*` 실제 debate_id 반환 — **세션 7 해소** (`0163340`+`8d5fabd`). trace_id 루프 완성.
 - **Vertex vs API key 경로**: selftest 에서 GOOGLE_API_KEY 사용 — 안정성 점검 (지금 동작은 함)
+- **_query_phoenix_traces 필터**: user_id/exercise_type 를 input/output value 텍스트 매칭으로 best-effort 필터 — Vector Search 배포(Day 14) 시 정교화 가능
 - **e2e 테스트 누적**: `orchestrator.py --full` 실행마다 `e2e_demo_*` Firestore debate 누적 (cleanup 없음) — CI 도입 시 정리.
 
 ### 5. 운영 메모
@@ -532,7 +594,7 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 | Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 e2e 골격 ✅ (run_full_session)** |
 | **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **골격 달성** (sample로 토론→합의→저장). 영상 합류 시 PoseExtractor만 추가하면 완전 e2e |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
-| Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2 ✅ (P4 70%)** · 12.3 배포준비만 남음 |
+| Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2 ✅ (P4 100%)** · Phoenix REST + trace_id 루프 완성 · 12.3 배포준비만 남음 |
 | Self-Improvement | 13 (6/9) | LLM-as-a-Judge + 양방향 학습 | ⏭️ |
 | UI + Deploy | 14 (6/10) | Streamlit + Cloud Run 듀얼 배포 | ⏭️ |
 | Submit | 15 (6/11) | 영상 + Devpost | ⏭️ |
