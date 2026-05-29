@@ -37,9 +37,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import time
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+# 스크립트 직접 실행(`python agents/orchestrator.py`) 시 sys.path[0]=agents/ 라서
+# `from agents.x` 가 'agents' 패키지를 못 찾는다. 프로젝트 루트를 sys.path 끝에 추가.
+# ⚠️ insert(0) 가 아니라 append: 루트의 mcp/ 폴더가 PyPI mcp 패키지를 shadow 하지
+#    않도록 site-packages 뒤에 둔다 (import mcp → 진짜 패키지를 먼저 발견).
+_ROOT = str(Path(__file__).resolve().parent.parent)
+if _ROOT not in sys.path:
+    sys.path.append(_ROOT)
 
 from google.adk.agents import ParallelAgent
 from google.adk.runners import Runner
@@ -48,6 +58,10 @@ from google.genai import types
 
 from agents.encourager import create_encourager_agent
 from agents.scrutinizer import create_scrutinizer_agent
+
+if TYPE_CHECKING:  # 타입 힌트 전용 (런타임 import 회피 — e2e 함수는 lazy import)
+    from agents.debate import DebateResult
+    from agents.mediator import MediatorOutput
 
 
 PIPELINE_NAME = "formforge_round1_pipeline"
@@ -253,13 +267,127 @@ def _safe_parse_json(text: str | None) -> dict[str, Any] | None:
         return None
 
 
+# ===========================================================================
+# End-to-end 세션 — 토론 → 합의(Mediator+MCP) → Firestore 저장 (Day 9 e2e 통합)
+# ===========================================================================
+
+@dataclass
+class FullSessionResult:
+    """전체 세션 결과 (토론 + Mediator 합의)."""
+    debate: "DebateResult"
+    mediator: "MediatorOutput"
+    mediator_latency_seconds: float
+    mcp_tool_calls: list[str]
+    total_latency_seconds: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "debate": self.debate.as_dict(),
+            "mediator": self.mediator.as_dict(),
+            "mediator_latency_seconds": self.mediator_latency_seconds,
+            "mcp_tool_calls": self.mcp_tool_calls,
+            "total_latency_seconds": self.total_latency_seconds,
+        }
+
+
+async def run_full_session(
+    pose_data: dict[str, Any],
+    user_context: dict[str, Any],
+    *,
+    persona_state: dict[str, Any] | None = None,
+    user_id: str | None = None,
+    max_rounds: int | None = None,
+    debate_id: str | None = None,
+    video_uri: str | None = None,
+    exercise_type: str | None = None,
+    use_mcp: bool = True,
+) -> FullSessionResult:
+    """
+    전체 파이프라인 1회 실행: 토론 → 합의 → (옵션) Firestore consensus 저장.
+
+    영상 없이 sample pose_data 로 end-to-end 골격 검증 가능 (PoseExtractor 는 Day 5 합류).
+
+    Args:
+        pose_data: PoseExtractor 출력 (현재 caller 제공).
+        user_context: { user_id, injury_history, experience_level, persona_state? }
+        debate_id: 제공되면 토론 라운드 push + Mediator consensus 저장 (fail-soft).
+        use_mcp: True → Mediator 가 Phoenix MCP introspection 자동 호출 (P4).
+                 False → output_schema 스켈레톤 Mediator (MCP 없음, 폴백).
+
+    Returns:
+        FullSessionResult — DebateResult + MediatorOutput + MCP tool 호출 목록.
+    """
+    # lazy import — test_orchestrator(run_round1) 가 debate/mediator/MCP 체인을
+    # 로드하지 않도록. mediator 의 MCP import 도 함수 내부라 mcp/ shadow 안전.
+    from agents.debate import run_debate
+    from agents.mediator import run_mediator, run_mediator_with_mcp
+
+    total_start = time.monotonic()
+
+    # 1) 멀티라운드 토론 (+ debate_id 면 Firestore 라운드 push)
+    debate_result = await run_debate(
+        pose_data=pose_data,
+        user_context=user_context,
+        persona_state=persona_state,
+        user_id=user_id,
+        max_rounds=max_rounds,
+        debate_id=debate_id,
+        video_uri=video_uri,
+        exercise_type=exercise_type,
+    )
+
+    # 2) Mediator 합의 (Phoenix MCP introspection)
+    if use_mcp:
+        mediator_out, med_latency, tool_calls = await run_mediator_with_mcp(
+            debate_result.as_dict(), pose_data, user_context
+        )
+    else:
+        mediator_out, med_latency = await run_mediator(
+            debate_result.as_dict(), pose_data, user_context
+        )
+        tool_calls = []
+
+    # 3) Firestore 에 합의 저장 (fail-soft — 저장 실패가 결과 반환을 막지 않음)
+    #    trace_ids 실연동(Phoenix trace ID 추출)은 P4 마무리 단계에서. 지금은 {}.
+    if debate_id:
+        try:
+            from storage import firestore_client
+
+            firestore_client.set_debate_consensus(
+                debate_id=debate_id,
+                consensus=mediator_out.as_dict(),
+                trace_ids={},
+            )
+        except Exception as e:  # noqa: BLE001
+            print(
+                f"⚠️  Firestore set_debate_consensus 실패 (fail-soft): "
+                f"{type(e).__name__}: {e}"
+            )
+
+    total_latency = time.monotonic() - total_start
+    return FullSessionResult(
+        debate=debate_result,
+        mediator=mediator_out,
+        mediator_latency_seconds=med_latency,
+        mcp_tool_calls=tool_calls,
+        total_latency_seconds=total_latency,
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI 데모 (옵션)
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import os
     import sys
     from pathlib import Path
+
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+    if os.getenv("GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
+        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
     sample_path = Path(__file__).resolve().parent.parent / "tests" / "sample_pose_data.json"
     if not sample_path.exists():
@@ -269,14 +397,67 @@ if __name__ == "__main__":
     with sample_path.open(encoding="utf-8") as f:
         sample_pose = json.load(f)
 
+    user_ctx = {
+        "user_id": "user_001",
+        "injury_history": ["lower_back_strain_2025"],
+        "experience_level": "intermediate",
+    }
+
+    # ---- e2e 전체 세션: 토론 → 합의(MCP) → Firestore (Day 9 통합) ----
+    if "--full" in sys.argv:
+        debate_id = f"e2e_demo_{int(time.time())}"
+        fs = asyncio.run(
+            run_full_session(
+                pose_data=sample_pose,
+                user_context=user_ctx,
+                debate_id=debate_id,
+                exercise_type=sample_pose.get("exercise_type", "squat"),
+                use_mcp=True,
+            )
+        )
+        print(
+            f"\n⏱  Total {fs.total_latency_seconds:.1f}s "
+            f"(mediator {fs.mediator_latency_seconds:.1f}s)"
+        )
+        print(
+            f"🔁 라운드 {len(fs.debate.rounds)} / converged={fs.debate.converged} "
+            f"/ shared_issue={fs.debate.shared_issue}"
+        )
+        print(f"🧰 MCP tool calls: {fs.mcp_tool_calls}")
+        print("\n🧑‍⚖️ MEDIATOR 합의:")
+        print(json.dumps(fs.mediator.as_dict(), ensure_ascii=False, indent=2))
+
+        # Firestore consensus 저장 확인
+        snap = None
+        try:
+            from storage import firestore_client
+
+            snap = firestore_client.get_debate_snapshot(debate_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"(Firestore 확인 실패: {type(e).__name__}: {e})")
+
+        checks = {
+            "토론 라운드 ≥1": len(fs.debate.rounds) >= 1,
+            "Mediator consensus 생성": bool(fs.mediator.consensus.strip()),
+            "MCP tool 자동 호출": len(fs.mcp_tool_calls) >= 1,
+            "P5 의료 면책": "의학 조언" in fs.mediator.disclaimer,
+            "Firestore consensus 저장": bool(snap and snap.get("consensus")),
+            "Firestore status=feedback_pending": bool(
+                snap and snap.get("status") == "feedback_pending"
+            ),
+        }
+        print(f"\n=== e2e acceptance (debate_id={debate_id}) ===")
+        for name, ok in checks.items():
+            print(f"  {'✅' if ok else '❌'} {name}")
+        all_ok = all(checks.values())
+        print(f"\n{'✅ e2e 파이프라인 통과' if all_ok else '❌ 미충족 항목 있음'}")
+        raise SystemExit(0 if all_ok else 1)
+
+    # ---- 기존 Round 1 데모 ----
     result = asyncio.run(
         run_round1(
             pose_data=sample_pose,
-            user_context={
-                "user_id": "demo_user",
-                "injury_history": ["lower_back_strain_2025"],
-                "experience_level": "intermediate",
-            },
+            user_context=user_ctx,
         )
     )
 

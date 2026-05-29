@@ -26,6 +26,7 @@ ARCHITECTURE.md §2.4 명세 구현 / TASKS.md Day 9 Task 9.1 (스켈레톤).
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from typing import Any, Literal
