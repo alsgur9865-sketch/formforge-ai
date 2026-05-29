@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-29 (세션 6 — Day 12 Task 12.1·12.2 + Day 9 Task 9.1. **P4 0%→70%, P5 0%→40%**)
-**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · **Day 9 Task 9.1 ✅** · **Day 12 Task 12.1·12.2 ✅**
-**저장소 상태**: 로컬 main 이 origin/main 보다 **4 커밋 앞섬 (push 대기)**. HEAD=`baa1b35`. 순서: 26def6f(docs)→02052bd(12.1)→746df6c(9.1)→baa1b35(12.2)
+**최종 갱신**: 2026-05-29 (세션 6 — Day 12 Task 12.1·12.2 + Day 9 Task 9.1 + **e2e 통합(run_full_session)**. P4 0%→70%, P5 0%→40%)
+**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · **Day 9 Task 9.1 + e2e 골격 ✅** · **Day 12 Task 12.1·12.2 ✅**
+**저장소 상태**: `26def6f`~`baa1b35`(5커밋) push 완료. 로컬에 **`ab43834`(e2e) + 이 docs 갱신 = 2커밋 push 대기**.
 
 ---
 
@@ -422,6 +422,16 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 - 검증(`--mcp`): **Gemini 2.5 Pro 가 query_past_debates + query_similar_safety_flags 를 자동 호출** 확인.
   acceptance 4/4. latency 49.4s.
 
+**4) e2e 통합 — 토론→합의→Firestore 파이프라인** (commit `ab43834`, 6/5 마일스톤 골격 달성) ⭐
+- `agents/orchestrator.py` `run_full_session()`: run_debate → run_mediator_with_mcp → set_debate_consensus 한 번에 조율.
+- FullSessionResult(debate + mediator + mcp_tool_calls + latency). debate/mediator import 는 함수 내부 lazy.
+- 스크립트 직접 실행 위해 프로젝트 루트를 sys.path 에 **append**(insert 아님 — mcp shadow 회피).
+- `mediator.py`: `import os` 를 모듈 최상단으로 (orchestrator import 경로에서 NameError 수정).
+- 검증(`--full`): **acceptance 6/6 통과**. 토론 라운드 ≥1 + Mediator consensus + MCP 자동 호출 +
+  P5 면책 + Firestore consensus 저장 + status=feedback_pending.
+- ⭐ **introspection 실증**: Mediator 가 MCP 로 과거 토론 2건을 찾아 `past_debate_references` 에 반영
+  ("과거에도 무릎 내반 붕괴 반복 지적"). sample_pose_data 로 **영상 없이 전체 파이프라인 동작**.
+
 ### 발견된 이슈 + 해결
 | # | 이슈 | 해결 |
 |---|---|---|
@@ -439,7 +449,8 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 - **past_debate_references 실데이터**: 같은 user 반복 업로드해야 채워짐 (현재 user_001 과거 debate 없어 []).
 - **Vertex vs API key 경로**: selftest 에서 `Using GOOGLE_API_KEY` — 세션 4 Vertex 전환과 다른 경로. 안정성 점검 필요(지금 동작은 함).
 - **asyncio.run() Streamlit 충돌**: `run_mediator_sync`/`run_mediator_with_mcp_sync` — Day 14 UI 통합 시 await 경로로.
-- **Mediator 미통합**: debate.py 토론 종료 후 Mediator 자동 호출 연결 아직 안 됨 (orchestrator 통합 필요).
+- ✅ **Mediator e2e 통합 완료** (commit `ab43834`, `run_full_session`) ← 세션 6 후반 해결.
+- **past_debate_references.debate_id 부정확**: MCP 가 doc.id 미반환 → LLM 이 created_at 으로 합성. P4 마무리 시 query_* 가 실제 debate_id 반환하도록 개선.
 
 ### 📊 절대원칙 진행률 (세션 6 종료 시점)
 | 원칙 | 진행률 | 비고 |
@@ -447,7 +458,7 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 | P1 Phoenix 자동 계측 | **100%** | ADK + 명시적 OTel span + MCP 서버 자체 계측 |
 | P2 Encourager ↔ Scrutinizer | **100%** | Round 1 Parallel + Round 2+ cross-reference |
 | P3 사용자 피드백 → 페르소나 | **50%** | Day 13 feedback handler 로 70% 예정 |
-| P4 Mediator + Phoenix MCP | **70%** | MCP wrapper + Mediator 자율 호출 ✅. 나머지: Phoenix REST 실연동 |
+| P4 Mediator + Phoenix MCP | **70%** | MCP wrapper + Mediator 자율 호출 + e2e introspection(past_debate_references 실데이터) ✅. 나머지: Phoenix REST 실연동 + 실제 debate_id 반환 |
 | P5 의료 면책 | **40%** | Mediator disclaimer 강제 ✅. UI 전체 표시는 Day 14 |
 
 ---
@@ -469,12 +480,13 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 3. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator pipeline: PoseExtractor → (Encourager ∥ Scrutinizer). latency 45s 재조정.
 4. **Day 9 Task 9.2** — End-to-end dry run (영상 → 모든 단계 → Firestore + Phoenix).
 
-### 2. 영상 없이도 가능 (세션 6 에서 9.1·12.1·12.2 완료 → 다음 우선순위)
-1. **Mediator e2e 통합** — `debate.py` 토론 종료 후 `run_mediator_with_mcp` 자동 호출 + Firestore `set_debate_consensus` 저장. 토론→합의 골격 완성. ~1시간.
-2. **Day 12 P4 마무리 (70% → 100%)** — `_query_phoenix_traces` 실연동 (arize-phoenix 패키지 + REST 인증). + 같은 user 반복으로 `past_debate_references` 실데이터 검증.
-3. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%.
-4. **Day 12 Task 12.3** — MCP server Cloud Run 배포 준비 (`mcp/Dockerfile`, http transport 모드). Day 14 대비.
-5. **Day 4 Task 4.2** — pytest + mock 단위 테스트 정비. CI 가능하게.
+### 2. 영상 없이도 가능 (e2e 통합까지 완료 → 다음 우선순위)
+1. **Day 12 P4 마무리 (70% → 100%)** — `_query_phoenix_traces` 실연동 (arize-phoenix 패키지 + REST 인증) + `query_*` 가 실제 debate_id 반환 (현재 LLM 합성). `past_debate_references` 정확도 ↑.
+2. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%.
+3. **Day 12 Task 12.3** — MCP server Cloud Run 배포 준비 (`mcp/Dockerfile`, http transport 모드). Day 14 대비.
+4. **Day 4 Task 4.2** — pytest + mock 단위 테스트 정비 (`run_full_session` 포함). CI 가능하게.
+
+> ✅ 세션 6 에서 **Mediator e2e 통합 완료** (`run_full_session`, ab43834). 영상 합류 시 PoseExtractor 만 앞에 붙이면 완전 e2e (`PoseExtractor → run_full_session`).
 
 ### 3. 추후·선택
 - Vector Search Index 빌드 완료 확인: `python storage/vector_search_setup.py status` (`vectors_count` 보이면 빌드 끝)
@@ -489,7 +501,9 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 - **test_orchestrator.py**: PRE 5번 false negative (inspect 정적 검사) — AST 파싱 필요, Day 14 이전 시간 남으면
 - **mediator.py**: `run_mediator_sync`/`run_mediator_with_mcp_sync` asyncio.run() Streamlit 충돌 — Day 14 UI 통합 시
 - **mediator.py**: Phoenix REST 실연동(`_query_phoenix_traces` 스켈레톤) — P4 마무리(70%→100%) 시
+- **mcp/phoenix_mcp_server.py**: `query_*` 가 doc.id 미반환 → `past_debate_references.debate_id` 가 LLM 합성값. P4 마무리 시 실제 debate_id 반환.
 - **Vertex vs API key 경로**: selftest 에서 GOOGLE_API_KEY 사용 — 안정성 점검 (지금 동작은 함)
+- **e2e 테스트 누적**: `orchestrator.py --full` 실행마다 `e2e_demo_*` Firestore debate 누적 (cleanup 없음) — CI 도입 시 정리.
 
 ### 5. 운영 메모
 - **Phoenix Cloud**: chain trace + llm trace(`convergence_judge`) + **Mediator span 아래 MCP tool call(query_past_debates / query_similar_safety_flags) child span** — Devpost 제출 영상용 핵심 스크린샷.
@@ -515,8 +529,8 @@ Second Eye 훅 → reviewer-agent 리뷰 → 🔴 Critical 3 + 🟡 Important 6 
 | Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 Day 2 거의 완료 (1.6 영상·2.2 deploy만 대기) |
 | Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 선완료, 4.2 단위 테스트만 남음 |
 | Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | ⏭️ 영상 대기 |
-| Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · 9.2 e2e 통합만 남음 |
-| **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟡 Mediator e2e 통합 + 영상 합류하면 달성 |
+| Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 e2e 골격 ✅ (run_full_session)** |
+| **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **골격 달성** (sample로 토론→합의→저장). 영상 합류 시 PoseExtractor만 추가하면 완전 e2e |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
 | Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2 ✅ (P4 70%)** · 12.3 배포준비만 남음 |
 | Self-Improvement | 13 (6/9) | LLM-as-a-Judge + 양방향 학습 | ⏭️ |
