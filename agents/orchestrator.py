@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -290,6 +291,48 @@ class FullSessionResult:
         }
 
 
+_PHOENIX_REGISTERED = False
+
+
+def _ensure_phoenix_registered() -> bool:
+    """
+    Phoenix 자동계측(register + GoogleADKInstrumentor)을 1회만 등록 (idempotent).
+
+    - 이미 등록됐으면 즉시 True.
+    - PHOENIX_API_KEY 없으면 False (계측 비활성 — trace_id 무효지만 파이프라인은 동작).
+    - register/instrument 실패해도 예외를 삼키고 False (fail-soft, P1 best-effort).
+
+    run_full_session 에서 호출 → mediator ADK span 이 Phoenix Cloud 로 송출되고
+    OTel trace_id 가 유효해진다 (B-1: trace_id 를 Firestore 에 저장하기 위함).
+    """
+    global _PHOENIX_REGISTERED
+    if _PHOENIX_REGISTERED:
+        return True
+    api_key = os.getenv("PHOENIX_API_KEY")
+    if not api_key:
+        return False
+    try:
+        from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+        from phoenix.otel import register
+
+        endpoint = (
+            os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com")
+            .rstrip("/")
+            + "/v1/traces"
+        )
+        tracer_provider = register(
+            project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
+            endpoint=endpoint,
+            headers={"api_key": api_key},
+        )
+        GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+        _PHOENIX_REGISTERED = True
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️  Phoenix register 실패 (계측 없이 계속): {type(exc).__name__}: {exc}")
+        return False
+
+
 async def run_full_session(
     pose_data: dict[str, Any],
     user_context: dict[str, Any],
@@ -321,6 +364,12 @@ async def run_full_session(
     # 로드하지 않도록. mediator 의 MCP import 도 함수 내부라 mcp/ shadow 안전.
     from agents.debate import run_debate
     from agents.mediator import run_mediator, run_mediator_with_mcp
+    from opentelemetry import trace as _otel_trace
+
+    # P1 + B-1: Phoenix 자동계측 등록(1회). 미등록이면 OTel trace_id 가 0(무효)이라
+    # trace_ids 저장이 의미 없으므로 여기서 보장. 실패해도 fail-soft.
+    _ensure_phoenix_registered()
+    _tracer = _otel_trace.get_tracer("formforge.orchestrator")
 
     total_start = time.monotonic()
 
@@ -336,27 +385,38 @@ async def run_full_session(
         exercise_type=exercise_type,
     )
 
-    # 2) Mediator 합의 (Phoenix MCP introspection)
-    if use_mcp:
-        mediator_out, med_latency, tool_calls = await run_mediator_with_mcp(
-            debate_result.as_dict(), pose_data, user_context
-        )
-    else:
-        mediator_out, med_latency = await run_mediator(
-            debate_result.as_dict(), pose_data, user_context
-        )
-        tool_calls = []
+    # 2) Mediator 합의 (Phoenix MCP introspection).
+    #    명시적 span 으로 감싸 mediator ADK trace 의 trace_id 를 추출 (B-1).
+    #    run_mediator_* 내부 ADK span 들이 이 span 의 자식(같은 trace)이 된다.
+    mediator_trace_id: str | None = None
+    with _tracer.start_as_current_span("mediator_consensus") as _mspan:
+        _ctx = _mspan.get_span_context()
+        if _ctx and _ctx.trace_id:  # 0 = INVALID_TRACE_ID(미등록) → None 유지
+            mediator_trace_id = format(_ctx.trace_id, "032x")
+        if use_mcp:
+            mediator_out, med_latency, tool_calls = await run_mediator_with_mcp(
+                debate_result.as_dict(), pose_data, user_context
+            )
+        else:
+            mediator_out, med_latency = await run_mediator(
+                debate_result.as_dict(), pose_data, user_context
+            )
+            tool_calls = []
 
-    # 3) Firestore 에 합의 저장 (fail-soft — 저장 실패가 결과 반환을 막지 않음)
-    #    trace_ids 실연동(Phoenix trace ID 추출)은 P4 마무리 단계에서. 지금은 {}.
+    # 3) Firestore 에 합의 저장 (fail-soft — 저장 실패가 결과 반환을 막지 않음).
+    #    trace_ids 에 mediator trace_id 실저장 → 다음 토론의 query_past_debates 가
+    #    실제 trace_id 를 반환하고, Phoenix REST 로 그 trace 를 다시 조회할 수 있다 (P4).
     if debate_id:
         try:
             from storage import firestore_client
 
+            trace_ids: dict[str, str] = {}
+            if mediator_trace_id:
+                trace_ids["mediator_trace_id"] = mediator_trace_id
             firestore_client.set_debate_consensus(
                 debate_id=debate_id,
                 consensus=mediator_out.as_dict(),
-                trace_ids={},
+                trace_ids=trace_ids,
             )
         except Exception as e:  # noqa: BLE001
             print(
@@ -445,10 +505,13 @@ if __name__ == "__main__":
             "Firestore status=feedback_pending": bool(
                 snap and snap.get("status") == "feedback_pending"
             ),
+            "Firestore trace_ids 저장(B-1)": bool(snap and snap.get("trace_ids")),
         }
         print(f"\n=== e2e acceptance (debate_id={debate_id}) ===")
         for name, ok in checks.items():
             print(f"  {'✅' if ok else '❌'} {name}")
+        if snap:
+            print(f"  🔗 저장된 trace_ids = {snap.get('trace_ids')}")
         all_ok = all(checks.values())
         print(f"\n{'✅ e2e 파이프라인 통과' if all_ok else '❌ 미충족 항목 있음'}")
         raise SystemExit(0 if all_ok else 1)
