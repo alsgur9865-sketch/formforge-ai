@@ -130,24 +130,93 @@ class PhoenixUnavailable(RuntimeError):
     """Phoenix REST trace 쿼리 불가 → 상위에서 Firestore fallback 유도."""
 
 
+def _notna(value: Any) -> bool:
+    """pandas NaN/None best-effort 체크 (pandas import 없이). NaN 은 자기 자신과 != 다."""
+    if value is None:
+        return False
+    try:
+        return value == value  # noqa: PLR0124 — NaN == NaN → False 트릭
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def _query_phoenix_traces(
     user_id: str, exercise_type: str | None, limit: int
 ) -> list[dict[str, Any]]:
     """
-    [스켈레톤] Phoenix Cloud REST API 로 사용자 trace 조회.
+    Phoenix Cloud REST API 로 사용자 관련 trace span 을 조회 (P4 introspection 실연동).
 
-    Day 12 Task 12.1 스코프 = 스켈레톤 → 실제 REST 연동 미구현.
-    항상 PhoenixUnavailable 을 던져 상위 tool 이 Firestore fallback + 경고 span 을
-    타도록 합니다 (acceptance: "Phoenix REST 호출 실패 시 fallback").
+    arize-phoenix-client(phoenix.client.Client) 로 프로젝트 span 을 가져온 뒤,
+    input/output value 텍스트에 user_id / exercise_type 단서가 있는 span 만 best-effort
+    로 추려 trace_id 목록을 반환한다. (우리 span 은 user_id 를 별도 attribute 로 일관
+    기록하지 않으므로 서버 필터 대신 클라이언트 측 텍스트 매칭을 쓴다.)
 
-    Day 12+ 실연동 시 여기를 채웁니다:
-      - arize-phoenix 패키지의 phoenix.Client().get_spans_dataframe(...) 로 span 조회, 또는
-      - GET {PHOENIX_COLLECTOR_ENDPOINT}/v1/projects/{project}/spans 직접 호출
-      - 받은 span 을 user_id / exercise_type attribute 로 필터 후 반환.
+    실패 시 PhoenixUnavailable 을 던져 상위 tool 이 Firestore 단독 fallback + 경고 span
+    을 타게 한다 (§5.3, P4 violation 회피). 실패 케이스:
+      - Phoenix 미등록 (_PHOENIX_READY=False, API key 없음/register 실패)
+      - phoenix.client 미설치 (arize-phoenix-client)
+      - 네트워크/인증/프로젝트 없음 등 조회 예외
     """
-    raise PhoenixUnavailable(
-        "Phoenix REST 연동은 스켈레톤 단계 미구현 (Day 12+ 예정)"
-    )
+    if not _PHOENIX_READY:
+        raise PhoenixUnavailable("Phoenix 미등록 (PHOENIX_API_KEY 없음 / register 실패)")
+
+    try:
+        from phoenix.client import Client  # noqa: E402
+    except ImportError as exc:
+        raise PhoenixUnavailable(
+            f"phoenix.client 미설치 (arize-phoenix-client): {exc}"
+        ) from exc
+
+    base_url = (
+        os.getenv("PHOENIX_COLLECTOR_ENDPOINT") or "https://app.phoenix.arize.com"
+    ).rstrip("/")
+    api_key = os.getenv("PHOENIX_API_KEY")
+    project = os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod")
+
+    try:
+        client = Client(base_url=base_url, api_key=api_key)
+        df = client.spans.get_spans_dataframe(
+            project_identifier=project, limit=max(limit * 10, 50)
+        )
+    except Exception as exc:  # noqa: BLE001 — 네트워크/인증/프로젝트 없음 등
+        raise PhoenixUnavailable(
+            f"Phoenix REST 조회 실패: {type(exc).__name__}: {exc}"
+        ) from exc
+
+    if df is None or getattr(df, "empty", True):
+        return []
+
+    needle_user = (user_id or "").lower()
+    needle_ex = (exercise_type or "").lower()
+    traces: list[dict[str, Any]] = []
+    # iterrows: index = context.span_id, row = pandas Series (컬럼 라벨로 접근)
+    for span_id, row in df.iterrows():
+        blob = ""
+        for col in ("attributes.input.value", "attributes.output.value"):
+            v = row.get(col)
+            if isinstance(v, str):
+                blob += v.lower()
+        # 도메인 필터: user_id 또는 exercise_type 단서가 있는 span 만 채택.
+        if needle_user and needle_user in blob:
+            pass
+        elif needle_ex and needle_ex in blob:
+            pass
+        else:
+            continue
+        tid = row.get("context.trace_id")
+        name = row.get("name")
+        kind = row.get("span_kind")
+        traces.append(
+            {
+                "trace_id": str(tid) if _notna(tid) else None,
+                "span_id": str(span_id),
+                "span_name": str(name) if _notna(name) else None,
+                "span_kind": str(kind) if _notna(kind) else None,
+            }
+        )
+        if len(traces) >= limit:
+            break
+    return traces
 
 
 # ---------------------------------------------------------------------------
@@ -217,12 +286,14 @@ def _query_past_debates_impl(
             "input.mime_type": "application/json",
         },
     ) as span:
-        # 1) Phoenix REST trace 시도 → 스켈레톤은 항상 fallback
+        # 1) Phoenix REST trace 조회 (introspection 실연동). 실패 시 Firestore fallback.
         phoenix_status: str
+        phoenix_traces: list[dict[str, Any]] = []
         try:
-            _query_phoenix_traces(user_id, exercise_type, limit)
-            phoenix_status = "ok"
+            phoenix_traces = _query_phoenix_traces(user_id, exercise_type, limit)
+            phoenix_status = f"ok ({len(phoenix_traces)} trace spans)"
             span.set_attribute("phoenix.fallback", False)
+            span.set_attribute("phoenix.traces_found", len(phoenix_traces))
         except PhoenixUnavailable as exc:
             phoenix_status = f"unavailable → firestore_fallback ({exc})"
             span.set_attribute("phoenix.fallback", True)
@@ -260,6 +331,7 @@ def _query_past_debates_impl(
                 "phoenix_status": phoenix_status,
                 "error": f"{type(exc).__name__}: {exc}",
                 "hint": "복합 인덱스(user_id+exercise_type+created_at) 미생성일 수 있음 — PROGRESS.md 참조",
+                "phoenix_traces": phoenix_traces,  # Firestore 실패해도 Phoenix trace 는 살림
                 "past_debates": [],
                 "disclaimer": MEDICAL_DISCLAIMER,
             }
@@ -274,6 +346,7 @@ def _query_past_debates_impl(
             "found": len(debates),
             "source": source,
             "phoenix_status": phoenix_status,
+            "phoenix_traces": phoenix_traces,  # Phoenix REST 로 가져온 실제 trace span
             "past_debates": debates,
             "disclaimer": MEDICAL_DISCLAIMER,
         }
