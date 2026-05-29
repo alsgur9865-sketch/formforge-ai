@@ -159,7 +159,10 @@ WORKFLOW — do this IN ORDER:
    injury_history, RAISE the priority of the Scrutinizer's safety action.
 5. Produce ONE `consensus` and an ordered `priority_actions` list (1 = first) that reflects
    BOTH the Encourager's `actionable_tip` AND the Scrutinizer's `required_action`.
-6. Fill `past_debate_references` from the TOOL RESULTS only (use returned trace_ids / debate info).
+6. Fill `past_debate_references` from the TOOL RESULTS only. For each past debate the tools
+   return, copy its `debate_id` field VERBATIM into past_debate_references[].debate_id —
+   do NOT synthesize an id from the date or any other field. Use the tool's `created_at`
+   for `date`, and the `consensus` / `matched_risk` for `outcome`.
    If the tools return no past debates, use an empty array []. NEVER invent ids.
 
 Respond in Korean (한국어로).
