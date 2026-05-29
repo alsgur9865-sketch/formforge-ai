@@ -188,6 +188,7 @@ def _summarize_debate(doc: dict[str, Any]) -> dict[str, Any]:
     if rounds:
         last_risk = _extract_scrutinizer_risk(rounds[-1])
     return {
+        "debate_id": doc.get("debate_id"),  # get_recent_debates 가 주입한 실제 doc id
         "exercise_type": doc.get("exercise_type"),
         "status": doc.get("status"),
         "created_at": _iso(doc.get("created_at")),
@@ -339,6 +340,7 @@ def _query_similar_safety_flags_impl(
                     if risk and needle in risk.lower():
                         matches.append(
                             {
+                                "debate_id": snap.id,  # 실제 doc id (LLM 합성 방지)
                                 "exercise_type": doc.get("exercise_type"),
                                 "matched_risk": risk,
                                 "consensus": doc.get("consensus"),

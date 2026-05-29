@@ -252,7 +252,16 @@ def get_recent_debates(user_id: str, exercise_type: str | None = None, limit: in
     if exercise_type:
         q = q.where("exercise_type", "==", exercise_type)
     q = q.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit)
-    return [snap.to_dict() for snap in q.stream()]
+    # snap.id(= debate_id)를 dict 에 보존.
+    #   Phoenix MCP 의 past_debate_references 가 "실제 doc id" 를 쓰도록 하기 위함.
+    #   (예전엔 id 를 버려서 Mediator LLM 이 created_at 으로 debate_id 를 합성했음 — P4 결함)
+    #   debates 문서에는 원래 "debate_id" 라는 필드가 없으므로 키 충돌 없음.
+    results: list[dict] = []
+    for snap in q.stream():
+        data = snap.to_dict() or {}
+        data["debate_id"] = snap.id
+        results.append(data)
+    return results
 
 
 # ---------------------------------------------------------------------------
