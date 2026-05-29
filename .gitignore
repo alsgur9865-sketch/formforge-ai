@@ -34,11 +34,16 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Uploaded videos (개발용. 운영은 Cloud Storage)
-data/sample_videos/*.mp4
-data/sample_videos/*.mov
-data/sample_videos/*.avi
+# Uploaded videos (개발용. 운영은 Cloud Storage. 어느 경로든 ignore)
+*.mp4
+*.mov
+*.avi
 !data/sample_videos/.gitkeep
+
+# MediaPipe 모델 자산 (바이너리 ~9MB. git 추적 X — 다운로드 가능)
+#   다운로드: analyze_video() 에러 메시지의 curl 명령 참조
+#   (pose_landmarker_full.task @ storage.googleapis.com/mediapipe-models/...)
+data/models/*.task
 
 # Cloud Run / build artifacts
 .dockerignore.bak
