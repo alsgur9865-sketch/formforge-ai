@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-29 (세션 7 — **Day 12 P4 마무리 (70%→100%)**: query_* 실제 debate_id 반환 + Phoenix REST 실연동 + trace_id 루프 완성)
-**현재 단계**: Day 1 5/6 (영상 대기) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · **Day 9 Task 9.1 + e2e 골격 ✅** · **Day 12 Task 12.1·12.2 ✅ (P4 100%)**
-**저장소 상태**: 로컬 **4커밋 push 대기** (`ab43834` e2e · `6d01d2f` docs · `0163340` P4-A · `8d5fabd` P4-B). push 는 사용자 직접(main 직접 push 차단).
+**최종 갱신**: 2026-05-30 (세션 8 — MediaPipe Tasks API 전환(solutions 제거 대응) + 운동 영상 1차 확인 → 전신 재촬영 필요 판명 + 리뷰 안전버그 4건)
+**현재 단계**: Day 1 5/6 (Task 1.6 코드 완성·**전신 영상 재촬영 대기**) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · Day 9 e2e 골격 ✅ · **Day 12 ✅ (P4 100%)**
+**저장소 상태**: 로컬 다수 커밋 push 대기 (세션6~8: `ab43834`·`6d01d2f`·`0163340`·`8d5fabd`·`aba3d77`·`14485fd` + 이 docs). push 는 사용자 직접(main 직접 push 차단).
 
 ---
 
@@ -525,6 +525,45 @@ selftest 1회로 동시 확인: phoenix_status "ok (5 trace spans)" + debate_id=
 
 ---
 
+## 🗓️ 세션 8 (2026-05-29 밤~05-30) — MediaPipe Tasks API 전환 + 운동 영상 1차 확인
+
+> 사용자가 첫 운동 영상(`KakaoTalk_*.mp4`) 제공 → Task 1.6 첫 실행에서 MediaPipe 환경 문제 발견·해결. 영상 품질 이슈로 **전신 측면 재촬영** 결정.
+
+### 발견: MediaPipe legacy solutions API 제거
+- 설치된 mediapipe **0.10.35** 패키지에 `solutions` 폴더 없음 (top: `__init__`, `modules`, `tasks` 만).
+- `pose_mediapipe.py` 가 `mp.solutions.pose.PoseLandmarker` 사용 → **AttributeError**.
+- 원인: MediaPipe 가 0.10.30+ 에서 legacy solutions 를 제거하고 Tasks API 로 완전 이전.
+
+### 결정: Tasks API 재작성 (다운그레이드 X)
+- dry-run 결과 mediapipe 0.10.18 다운그레이드는 **protobuf 6→4.25.9 강제** → google-adk/genai/firestore/phoenix(P1~P4) 깨질 위험 → **기각**.
+- `vision.PoseLandmarker`(VIDEO 모드)로 재작성. 랜드마크 인덱스(BlazePose 33)/visibility 동일 → 각도/rep/tempo 로직 그대로 재사용.
+- 모델 자산: `data/models/pose_landmarker_full.task` (9.4MB, curl 다운로드). `.gitignore` (바이너리).
+- (commit `14485fd`)
+
+### 운동 영상 1차 확인 (`KakaoTalk_20260529_231954890.mp4`)
+- 19.2s / **59.3fps** / 1137프레임. rep 8 검출, depth/back/tempo 산출 → **파이프라인 동작 확인**.
+- ⚠️ 3대 품질 이슈:
+  1. **자세 미검출 43%** (490/1137) — 원인: **하체(종아리~대퇴부) 클로즈업 촬영**. MediaPipe Pose 는 전신(얼굴~발) 기준이라 부분 촬영은 검출 실패. 코드로 해결 불가.
+  2. tempo 비현실적(0.03~0.4s) — 59fps 인데 rep 검출 파라미터가 30fps 기준 + 미검출 gap.
+  3. 속도 22s (full 모델, CPU).
+- **결정: 전신 측면 재촬영** (5/30 예정). 머리~발끝, 측면, 2~3m, 10~20s, 5~8회.
+
+### Second Eye 리뷰 → 안전 묶음 4건 수정 (commit `14485fd`)
+- #2 `_back_angle_vs_vertical` 코사인 분모에 ‖vertical‖ 명시 (수식 정확성, 현재 결과 동일).
+- #4 미검출률 분모 total_frames(헤더) → len(frames)+miss_count (실측).
+- #5 RunningMode 를 vision.RunningMode 별칭 고정 (버전별 경로 흔들림 방어).
+- #7 landmarker try 안 생성 + None 가드 (cap 누수/NameError 방어).
+- 검증: import OK + RunningMode.VIDEO 동작 + 영상 회귀 없음 (rep 8, 정상 종료).
+
+### 미수정 (의도적 연기 — 전신 영상 확보 후, Task #8)
+- **정확도 묶음** (리뷰 #1 미검출 gap 보간 + #3·#6 smoothing 경계/edge 패딩 + fps 비례 window): tempo 현실화. 현 하체 영상은 미검출 43% 라 검증 불가 → 전신 영상으로.
+- 속도(full→lite 모델/프레임 샘플링): 정확도 묶음과 함께.
+
+### 📊 절대원칙 진행률 (변동 없음)
+P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
@@ -532,15 +571,17 @@ selftest 1회로 동시 확인: phoenix_status "ok (5 trace spans)" + debate_id=
 - 영상 도착했는지 확인: `ls "data/sample_videos/"`
 - 가능하면 `.env` 에 `VECTOR_SEARCH_*` 3개 변수 추가됐는지 한 번 더 확인
 
-### 1. 영상 도착했을 때 우선순위
-1. **Task 1.6 검증**:
+### 1. 전신 측면 영상 받았을 때 우선순위
+> ⚠️ 첫 영상(하체 클로즈업)은 미검출 43% → **전신 측면 재촬영 필수**. 머리~발끝, 측면, 2~3m, 10~20s, 5~8회.
+0. 영상을 `data/sample_videos/` 에 두기 (루트 `*.mp4` 는 .gitignore). 모델 없으면 먼저 다운로드(§3 참조).
+1. **pose_mediapipe 정확도 묶음 적용** (Task #8) — 리뷰 #1 미검출 gap 보간 + #3·#6 smoothing 경계 + fps 비례 window. tempo 현실화.
+2. **Task 1.6 재검증**:
    ```
    ./venv/Scripts/python.exe agents/pose_mediapipe.py data/sample_videos/squat_demo.mp4 squat
    ```
-   30초 영상 5s 이내 acceptance.
-2. **Day 5 Task 5.1** — 2-stage PoseExtractor 완성 (MediaPipe Stage 1 + Gemini Vision Stage 2). 영상으로 직접 검증.
-3. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator pipeline: PoseExtractor → (Encourager ∥ Scrutinizer). latency 45s 재조정.
-4. **Day 9 Task 9.2** — End-to-end dry run (영상 → 모든 단계 → Firestore + Phoenix).
+   전신 영상이면 미검출률 ↓, rep/tempo 정확. (속도 느리면 lite 모델/프레임 샘플링)
+3. **Day 5 Task 5.1** — 2-stage PoseExtractor 완성 (MediaPipe Stage 1 + Gemini Vision Stage 2 해석). 영상으로 직접 검증.
+4. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator: PoseExtractor → run_full_session (완전 e2e). latency 재조정.
 
 ### 2. 영상 없이도 가능 (P4 100% 완료 → 다음 우선순위)
 1. ✅ **Day 12 P4 마무리 (70%→100%) 완료** (세션 7, `0163340`+`8d5fabd`) — query_* 실제 debate_id + Phoenix REST 실연동 + trace_id 루프.
@@ -566,11 +607,14 @@ selftest 1회로 동시 확인: phoenix_status "ok (5 trace spans)" + debate_id=
 - **Vertex vs API key 경로**: selftest 에서 GOOGLE_API_KEY 사용 — 안정성 점검 (지금 동작은 함)
 - **_query_phoenix_traces 필터**: user_id/exercise_type 를 input/output value 텍스트 매칭으로 best-effort 필터 — Vector Search 배포(Day 14) 시 정교화 가능
 - **e2e 테스트 누적**: `orchestrator.py --full` 실행마다 `e2e_demo_*` Firestore debate 누적 (cleanup 없음) — CI 도입 시 정리.
+- **pose_mediapipe.py 정확도 묶음** (Task #8): 리뷰 #1 미검출 gap 보간 + #3·#6 smoothing 경계 + fps 비례 window — tempo 현실화. **전신 영상 확보 후** (현 하체 영상은 미검출 43% 라 검증 불가).
+- **pose_mediapipe.py 속도**: full 모델로 19s 영상에 22s — lite 모델/프레임 샘플링 — 정확도 묶음과 함께.
+- **MediaPipe 모델 자산**: `data/models/pose_landmarker_full.task` 는 .gitignore (9.4MB 바이너리). 클론 후 curl 다운로드 필요 (analyze_video 에러 메시지에 명령) — Day 14 README/setup 에 명시.
 
 ### 5. 운영 메모
 - **Phoenix Cloud**: chain trace + llm trace(`convergence_judge`) + **Mediator span 아래 MCP tool call(query_past_debates / query_similar_safety_flags) child span** — Devpost 제출 영상용 핵심 스크린샷.
 - **GCP 누적 비용**: ~$0 추정 (Firestore + Storage free tier, Vector Search Index 빌드 무료, Gemini API ~$0.1)
-- **마감 D-14** (6/12 06:00 KST, 오늘 5/29 기준)
+- **마감 D-13** (6/12 06:00 KST, 오늘 5/30 기준)
 
 ---
 
@@ -588,9 +632,9 @@ selftest 1회로 동시 확인: phoenix_status "ok (5 trace spans)" + debate_id=
 
 | Phase | Day | 핵심 목표 | 상태 |
 |---|---|---|---|
-| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 Day 2 거의 완료 (1.6 영상·2.2 deploy만 대기) |
+| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 Day 2 거의 완료. 1.6 = Tasks API 재작성 ✅·**전신 영상 재촬영 대기** · 2.2 deploy 대기 |
 | Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 선완료, 4.2 단위 테스트만 남음 |
-| Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | ⏭️ 영상 대기 |
+| Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | 🟡 Stage1(MediaPipe Tasks API) ✅ · 전신 영상 + Stage2(Gemini) 대기 |
 | Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 e2e 골격 ✅ (run_full_session)** |
 | **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **골격 달성** (sample로 토론→합의→저장). 영상 합류 시 PoseExtractor만 추가하면 완전 e2e |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
