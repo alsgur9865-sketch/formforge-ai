@@ -1,0 +1,19 @@
+# MCP server 전용 경량 의존성 (Task 12.3 — Cloud Run formforge-mcp 서비스).
+#
+# 메인 앱(requirements.txt)에서 MCP server 가 실제로 import 하는 것만 추렸다.
+# 제외된 무거운 패키지(이미지 크게 경량화 → Cloud Run 빌드 빠르고 실패율↓):
+#   mediapipe / opencv-python / numpy / scipy   — PoseExtractor 전용 (MCP 미사용)
+#   google-adk / openinference-...-google-adk    — ADK Runner 는 메인 앱의 Mediator 쪽
+#   google-genai                                 — MCP server 는 LLM 직접 호출 안 함
+#   google-cloud-storage / google-cloud-aiplatform — MCP server 미사용
+#   streamlit / streamlit-autorefresh / pytest   — UI / 테스트
+#
+# 버전은 requirements.txt 와 동일하게 유지 (메인 앱과 라이브러리 불일치 방지).
+
+fastmcp>=2.0.0              # @mcp.tool, mcp.run(transport="http") — 실제 설치 3.3.1
+mcp>=1.0.0                  # fastmcp 의 기반 프로토콜 패키지
+python-dotenv>=1.0.0        # .env 로드 (로컬 dev)
+arize-phoenix-otel>=0.6.0   # phoenix.otel.register — 서버 자체 계측 (P1)
+arize-phoenix-client>=2.0.0 # phoenix.client — Phoenix REST trace 조회
+google-cloud-firestore>=2.18.0  # storage.firestore_client (과거 토론 join)
+pydantic>=2.9.0             # 스키마

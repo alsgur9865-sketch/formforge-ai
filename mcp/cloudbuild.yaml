@@ -1,0 +1,62 @@
+# 파일 위치: mcp/cloudbuild.yaml
+# FormForge MCP server 빌드 + Cloud Run 배포 (Task 12.3 준비 / Day 14 Task 14.3 실행).
+#
+# Docker 로컬 설치 없이 Cloud Build 가 빌드한다.
+# 실행 (프로젝트 루트에서):
+#   gcloud builds submit --config mcp/cloudbuild.yaml .
+#
+# 선행 (1회):
+#   gcloud artifacts repositories create formforge \
+#       --repository-format=docker --location=us-central1
+#
+# 시크릿(PHOENIX_API_KEY)은 보안상 여기 두지 않는다. 배포 후 1회:
+#   gcloud run services update formforge-mcp --region us-central1 \
+#       --update-secrets=PHOENIX_API_KEY=phoenix-api-key:latest
+#   (또는 Secret Manager 에 등록 후 --update-secrets)
+
+substitutions:
+  _SERVICE: formforge-mcp
+  _REGION: us-central1
+  _REPO: formforge
+
+steps:
+  # 1) 이미지 빌드 — 빌드 컨텍스트는 루트(.), Dockerfile 은 mcp/Dockerfile
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - mcp/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+      - .
+
+  # 2) Artifact Registry 푸시
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}
+
+  # 3) Cloud Run 배포 — min-instances=1 로 cold start 회피 (MCP 호출 5s timeout 방지)
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --min-instances=1
+      - --port=8080
+      - --no-allow-unauthenticated
+      - --set-env-vars=PHOENIX_MCP_TRANSPORT=http,PHOENIX_PROJECT_NAME=formforge-prod,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

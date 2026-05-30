@@ -431,9 +431,27 @@ async def run_full_session(
         if _ctx and _ctx.trace_id:  # 0 = INVALID_TRACE_ID(미등록) → None 유지
             mediator_trace_id = format(_ctx.trace_id, "032x")
         if use_mcp:
-            mediator_out, med_latency, tool_calls = await run_mediator_with_mcp(
-                debate_result.as_dict(), pose_data, user_context
-            )
+            try:
+                mediator_out, med_latency, tool_calls = await run_mediator_with_mcp(
+                    debate_result.as_dict(), pose_data, user_context
+                )
+            except Exception as mcp_exc:  # noqa: BLE001
+                # MCP 서버 다운/연결 실패 → MCP 없는 Mediator 로 fallback (앱이 안 죽음).
+                # ARCHITECTURE §5.3 / Task 12.3: Phoenix 에 경고 기록 + 토론은 그대로 합의.
+                _mspan.set_attribute("mcp.fallback", True)
+                _mspan.set_attribute(
+                    "mcp.fallback_reason",
+                    f"{type(mcp_exc).__name__}: {mcp_exc}"[:500],  # OTel attr 길이 가드
+                )
+                _mspan.add_event("mcp_unavailable_fallback")
+                print(
+                    f"⚠️  MCP 호출 실패 → MCP 없는 Mediator fallback (앱 계속): "
+                    f"{type(mcp_exc).__name__}: {mcp_exc}"
+                )
+                mediator_out, med_latency = await run_mediator(
+                    debate_result.as_dict(), pose_data, user_context
+                )
+                tool_calls = []
         else:
             mediator_out, med_latency = await run_mediator(
                 debate_result.as_dict(), pose_data, user_context
