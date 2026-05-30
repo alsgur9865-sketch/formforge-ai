@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-30 (세션 8 — MediaPipe Tasks API 전환(solutions 제거 대응) + 운동 영상 1차 확인 → 전신 재촬영 필요 판명 + 리뷰 안전버그 4건)
-**현재 단계**: Day 1 5/6 (Task 1.6 코드 완성·**전신 영상 재촬영 대기**) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · Day 8 ✅ · Day 9 e2e 골격 ✅ · **Day 12 ✅ (P4 100%)**
-**저장소 상태**: 로컬 다수 커밋 push 대기 (세션6~8: `ab43834`·`6d01d2f`·`0163340`·`8d5fabd`·`aba3d77`·`14485fd` + 이 docs). push 는 사용자 직접(main 직접 push 차단).
+**최종 갱신**: 2026-05-30 (세션 9 — 전신 측면 영상 도착·검증(미검출 0%) + PoseExtractor Stage1 정확도 묶음(rep 3개 정확) + Stage2 신규(Gemini 멀티모달) = **Day 5 Task 5.1 완성**)
+**현재 단계**: Day 1 ✅(1.6 전신영상 통과) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · **Day 5 Task 5.1 ✅ (2-stage PoseExtractor)** · Day 8 ✅ · Day 9 e2e 골격 ✅ · **Day 12 ✅ (P4 100%)**
+**저장소 상태**: `eec574f`(정확도묶음) push 완료. **`341363a`(Task 5.1 Stage2) 1커밋 push 대기**. push 는 사용자 직접(main 직접 push 차단).
 
 ---
 
@@ -564,6 +564,70 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 
 ---
 
+## 🗓️ 세션 9 (2026-05-30) — 전신 영상 검증 + PoseExtractor 2-stage 완성 (Day 5 Task 5.1) ⭐
+
+> 전신 측면 영상 도착 → Task 1.6 마지막 차단 해소 → Stage1 정확도 묶음 → Stage2(Gemini 멀티모달) 신규. 멀티모달 코어(차별화 #4) 가동.
+
+### 사용자 완료
+- ✅ **전신 측면 영상 재촬영** (`KakaoTalk_20260530_151800791.mp4` → `data/sample_videos/squat_demo.mp4`). 머리~발끝 측면. **미검출 43%→0%** 로 Task 1.6 완전 통과.
+- ✅ ground truth 제공: 실제 **스쿼트 3회**, 깊게 앉음 → rep 검출 정확도 판정 근거.
+- ✅ push (`eec574f` 등 9커밋).
+
+### Claude Code 완료
+
+**1) Stage 1 정확도 묶음** (commit `eec574f`) — rep 검출/tempo 현실화
+- **근본 원인 진단**(시계열 덤프 디버깅): tempo 0.02s 난수 = start/end 단조증가 추적이 노이즈에 1~2프레임 만에 멈춤 + smoothing window 30fps 고정(59fps 에 약함).
+- fps 비례 smoothing window(0.25s치) + edge 패딩(경계 왜곡 제거).
+- stride 프레임 샘플링(59→30fps) — inference 33%↓ (15.8→9.5s).
+- 회복지점 기반 start/end 검출 → tempo 현실값(down/up 1~2s).
+- **prominence 기반 rep 병합** — "깊게 앉아 머무는 출렁임/멈칫"을 한 rep 으로. **rep 5→3 (실측 3회 일치)**.
+- **visibility 가중 무릎각** — 측면 occlusion(우무릎 vis 0.33) depth 오염 제거.
+- 리뷰 수정: C-1(평평신호 가드)·C-2(인접 rep 중간점 clamp = tempo 이중카운트 제거)·I-2(percentile 폴백)·I-4(duration=0)·minima 경계 보완·무릎 visibility 경고.
+- 결과: **rep 3개 정확, depth_consistency 0.80, tempo_consistency 0.78, 사이클 합 9.5s < 영상 11.5s(물리 정합)**.
+
+**2) Stage 2 신규 — Gemini 멀티모달 해석** (commit `341363a`) ⭐ Day 5 Task 5.1 완성
+- `agents/pose_extractor.py` 신규 + `tests/test_pose_extractor.py`(단위 7개).
+- `agents/pose_mediapipe.py`: RepMetrics 에 `bottom_timestamp_sec` 노출(keyframe용, append-only).
+- **핵심 설계**: Gemini 는 해석만(camera_angle/knee_alignment/safety_flags/form_score/reasoning), 정량 수치는 코드가 Stage1 값을 `_merge` → LLM 수치 재측정 금지를 구조적 보장.
+- **앵글 인지**(grill-me 재검토 발견): 측면 영상에선 좌우 valgus 판단 불가 → `not_visible` 강제. 측면 valgus 단정 = 거짓정밀이라 회피. "한계 인지하는 정직한 시스템" 강점.
+- 신뢰도 가드: rep 0 / 무릎 visibility 낮음 → error_code + Gemini 스킵.
+- google-genai 직접 멀티모달 + 명시 OTel span(convergence_judge 패턴, Phoenix 송출 확인). Vertex 모드 우선.
+- keyframe = rep 최저점 cv2 POS_MSEC seek(전체 재read X), 최대 6장.
+- **metric legend** 로 depth_degrees(작을수록 깊음) 오해 버그 수정 (form_score 35→75, "깊이 부족"→"깊이 훌륭함").
+- 견고성(리뷰): 임시파일 누수 가드 + Gemini 파싱 예외→error dict + span ERROR 기록.
+- **검증: 단위 7/7 + e2e 8/8** — camera_angle=side, 측면 valgus not_visible, injury(lower_back) 반영 forward_lean=high, P5 면책, 정량 보존.
+
+### grill-me 설계 결정 (Task 5.1)
+| 결정 | 선택 |
+|---|---|
+| keyframe | rep 최저점 + 시작/끝 (safety 가 bottom 에서 보임) |
+| Gemini 호출 | google-genai 직접 + OTel span (멀티모달 확실, convergence_judge 선례) |
+| 출력 스키마 | 정성 판단 (cm/각도 거짓정밀 제거, knee_alignment 방향+정도) |
+| form_score | Gemini 종합 판단 (감점 루브릭 + temp 0.15) |
+| 에러 | Stage1 신뢰도 낮으면 error code + Stage2 스킵 |
+| 입력 | 로컬 우선 + GCS(download_to_local) 인터페이스 |
+
+### 발견 + 결정
+| # | 항목 | 처리 |
+|---|---|---|
+| 1 | depth_degrees 의미 Gemini 오해(작은각=얕다) | metric legend 추가 → form_score 35→75 |
+| 2 | 측면 영상 valgus 판단 한계 | 앵글 인지 프롬프트 → not_visible (거짓정밀 방지) |
+| 3 | 리뷰 `deeper=max` Critical 지적 | **오탐 검증**(prominence 정의상 정확) → 변수명만 `shallower_ang` 정정 |
+| 4 | `types.Part.from_bytes` 버전 의존 | selftest 작동 검증 → 오탐. requirements 버전 고정은 Day 14 |
+
+### 📊 절대원칙 진행률 (세션 9 종료)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | + PoseExtractor Stage2 OTel span |
+| P2 Encourager ↔ Scrutinizer | **100%** | |
+| P3 사용자 피드백 → 페르소나 | **50%** | Day 13 feedback handler 로 70% |
+| P4 Mediator + Phoenix MCP | **100%** | |
+| P5 의료 면책 | **45%** | Mediator + PoseExtractor disclaimer 강제 ✅. UI 전체 표시 Day 14 |
+
+> 차별화 #4 (Multi-modal × Multi-agent) **실증 시작** — PoseExtractor Stage2 가 영상을 멀티모달 해석. 다음 단계(Task 4.1 Phase 2)에서 두 코치가 그 결과를 다른 관점으로 토론하게 연결.
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
@@ -571,21 +635,23 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 - 영상 도착했는지 확인: `ls "data/sample_videos/"`
 - 가능하면 `.env` 에 `VECTOR_SEARCH_*` 3개 변수 추가됐는지 한 번 더 확인
 
-### 1. 전신 측면 영상 받았을 때 우선순위
-> ⚠️ 첫 영상(하체 클로즈업)은 미검출 43% → **전신 측면 재촬영 필수**. 머리~발끝, 측면, 2~3m, 10~20s, 5~8회.
-0. 영상을 `data/sample_videos/` 에 두기 (루트 `*.mp4` 는 .gitignore). 모델 없으면 먼저 다운로드(§3 참조).
-1. **pose_mediapipe 정확도 묶음 적용** (Task #8) — 리뷰 #1 미검출 gap 보간 + #3·#6 smoothing 경계 + fps 비례 window. tempo 현실화.
-2. **Task 1.6 재검증**:
+### 1. 영상 작업 — Day 5 완료 ✅, 다음은 완전 e2e
+> ✅ 전신 측면 영상 도착·검증(미검출 0%) + Stage1 정확도 묶음(rep 3개) + Stage2(Gemini 멀티모달) = **Task 5.1 완료** (세션 9).
+1. **Task 4.1 Phase 2 — 완전 e2e** ← **다음 1순위**:
+   영상 1개 → `pose_extractor.run_pose_extractor()` 결과를 pose_data 로 `run_full_session()` 에 흘림
+   (토론→합의→Mediator→Firestore). orchestrator 에 PoseExtractor prepend.
+   - 입력 변환 주의: `run_pose_extractor()` 출력(safety_flags/reps/camera_angle 포함)을 encourager/scrutinizer 가 받는 pose_data 형태로 그대로 전달 가능(스키마 호환).
+   - latency 재조정: PoseExtractor ~27s(Stage1 10s + Stage2 Gemini 17s) + 토론 ~30s + Mediator → 60s 목표 점검.
+2. **잘못된 자세 영상으로 safety_flags 검증** (Task 5.1 후반, TASKS.md Steps): 결함 의도 영상 → safety_flags 정확 검출 확인 → 안 잡히면 prompt 보강.
+3. 실행 명령:
    ```
-   ./venv/Scripts/python.exe agents/pose_mediapipe.py data/sample_videos/squat_demo.mp4 squat
+   ./venv/Scripts/python.exe agents/pose_extractor.py data/sample_videos/squat_demo.mp4 squat
+   ./venv/Scripts/python.exe agents/pose_extractor.py --selftest   # e2e acceptance 8/8
    ```
-   전신 영상이면 미검출률 ↓, rep/tempo 정확. (속도 느리면 lite 모델/프레임 샘플링)
-3. **Day 5 Task 5.1** — 2-stage PoseExtractor 완성 (MediaPipe Stage 1 + Gemini Vision Stage 2 해석). 영상으로 직접 검증.
-4. **Task 4.1 Phase 2** — PoseExtractor 합류 후 orchestrator: PoseExtractor → run_full_session (완전 e2e). latency 재조정.
 
 ### 2. 영상 없이도 가능 (P4 100% 완료 → 다음 우선순위)
 1. ✅ **Day 12 P4 마무리 (70%→100%) 완료** (세션 7, `0163340`+`8d5fabd`) — query_* 실제 debate_id + Phoenix REST 실연동 + trace_id 루프.
-2. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%. ← **다음 1순위**
+2. **Day 13 Task 13.2** — LLM-as-a-Judge (`gemini-3.5-flash`) 토론 품질 평가. P3 50% → 70%. ← **e2e(§1) 다음 우선순위**
 3. **Day 12 Task 12.3** — MCP server Cloud Run 배포 준비 (`mcp/Dockerfile`, http transport 모드). Day 14 대비.
 4. **Day 4 Task 4.2** — pytest + mock 단위 테스트 정비 (`run_full_session` 포함). CI 가능하게.
 
@@ -607,8 +673,12 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 - **Vertex vs API key 경로**: selftest 에서 GOOGLE_API_KEY 사용 — 안정성 점검 (지금 동작은 함)
 - **_query_phoenix_traces 필터**: user_id/exercise_type 를 input/output value 텍스트 매칭으로 best-effort 필터 — Vector Search 배포(Day 14) 시 정교화 가능
 - **e2e 테스트 누적**: `orchestrator.py --full` 실행마다 `e2e_demo_*` Firestore debate 누적 (cleanup 없음) — CI 도입 시 정리.
-- **pose_mediapipe.py 정확도 묶음** (Task #8): 리뷰 #1 미검출 gap 보간 + #3·#6 smoothing 경계 + fps 비례 window — tempo 현실화. **전신 영상 확보 후** (현 하체 영상은 미검출 43% 라 검증 불가).
-- **pose_mediapipe.py 속도**: full 모델로 19s 영상에 22s — lite 모델/프레임 샘플링 — 정확도 묶음과 함께.
+- ✅ **pose_mediapipe.py 정확도 묶음** (Task #8) — **세션 9 해소** (`eec574f`). fps 비례 window + prominence 병합 + visibility 가중. rep 3개 정확, tempo 현실화.
+- **pose_extractor.py 속도**: Stage1 ~10s + Stage2 Gemini 멀티모달 ~16-18s ≈ 27s. Task 5.1 acceptance(10s)엔 미달(Gemini Flash 변동). 데모 영상 10-20s면 수용. 조정 추후.
+- **pose_extractor.py form_score 재현성**: temp 0.15 에도 ±10 변동. 데모는 1회 결과 사용. 더 낮추거나 루브릭 강화 가능.
+- **pose_extractor selftest stdout**: phoenix register 박스가 stdout 오염 → JSON 프로그래밍 파싱 시 주의(acceptance 는 stderr 라 무관). 사소.
+- **requirements google-genai 버전 고정**: `types.Part.from_bytes` 버전 의존 — Day 14 배포 시 고정.
+- **pose_mediapipe.py 속도/lite**: full 모델 11.5s 영상에 9.5s — lite 모델/샘플링 추가 단축 — 추후.
 - **MediaPipe 모델 자산**: `data/models/pose_landmarker_full.task` 는 .gitignore (9.4MB 바이너리). 클론 후 curl 다운로드 필요 (analyze_video 에러 메시지에 명령) — Day 14 README/setup 에 명시.
 
 ### 5. 운영 메모
@@ -632,9 +702,9 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 
 | Phase | Day | 핵심 목표 | 상태 |
 |---|---|---|---|
-| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 Day 2 거의 완료. 1.6 = Tasks API 재작성 ✅·**전신 영상 재촬영 대기** · 2.2 deploy 대기 |
+| Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 **Day 1 ✅** (1.6 전신영상 통과, 미검출 0%) · Day 2 거의 완료 (2.2 deploy 만 Day14) |
 | Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 선완료, 4.2 단위 테스트만 남음 |
-| Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | 🟡 Stage1(MediaPipe Tasks API) ✅ · 전신 영상 + Stage2(Gemini) 대기 |
+| Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | 🟢 **Task 5.1 ✅** (Stage1 정확도묶음 + Stage2 Gemini 멀티모달, e2e 8/8). 잘못된자세 safety 검증 남음 |
 | Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 e2e 골격 ✅ (run_full_session)** |
 | **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **골격 달성** (sample로 토론→합의→저장). 영상 합류 시 PoseExtractor만 추가하면 완전 e2e |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
