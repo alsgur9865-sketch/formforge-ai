@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormForge AI — Coach Record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800;900&family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#111219; --ink2:#171922; --panel:#1A1D28; --line:#2A2D3A; --line2:#373B4C;
+    --hi:#ECEAE2; --mid:#9A988C; --dim:#67655B;
+    --enc:#37B36A; --scr:#E8415C; --scr-soft:#F79DAC; --gold:#C9A24B; --ember:#E2672E;
+    --cold:#646B7E; --cold2:#3A3F4F;
+    --bone:#EAE3D2; --bone2:#D8CFB8; --bone-ink:#2A2519; --bone3:#7A6E4C;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{width:1440px; height:920px; overflow:hidden; position:relative;}
+  body{background:var(--ink); color:var(--hi); font-family:'Archivo',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  .stage{height:100%; display:flex; flex-direction:column;}
+
+  .strip{display:flex; align-items:center; justify-content:space-between; padding:13px 46px; background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px), var(--ink2);
+    border-bottom:3px solid var(--hi);}
+  .strip .l{display:flex; align-items:center; gap:11px; font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--mid);}
+  .strip .l .mk{width:24px; height:24px; border-radius:6px; display:grid; place-items:center; background:var(--hi);}
+  .strip .fighter{font-family:'Saira Condensed'; font-weight:700; font-size:17px; letter-spacing:.06em; text-transform:uppercase; color:var(--scr-soft); white-space:nowrap;}
+  .strip .r{font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.14em; color:var(--gold);}
+
+  /* hero */
+  .hero{padding:22px 46px 18px; border-bottom:1px solid var(--line); display:flex; align-items:flex-end; justify-content:space-between; gap:30px;}
+  .hero .ey{font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.18em; color:var(--ember); text-transform:uppercase; margin-bottom:9px;}
+  .hero h1{font-family:'Saira Condensed'; font-weight:900; font-size:66px; line-height:.82; letter-spacing:.01em; text-transform:uppercase;}
+  .hero h1 em{font-style:normal; color:var(--ember);}
+  .hero .lede{max-width:380px; font-size:14px; color:var(--mid); line-height:1.5; padding-bottom:5px;}
+  .hero .lede b{color:var(--hi);}
+
+  /* diptych */
+  .camp{flex:1; display:grid; grid-template-columns:1fr 226px 1fr; min-height:0; align-items:stretch;}
+  .wk{padding:22px 30px; display:flex; flex-direction:column; gap:16px; justify-content:center;}
+  .wk.before{background:linear-gradient(180deg, rgba(100,107,126,.06), transparent);}
+  .wk.after{background:linear-gradient(180deg, rgba(232,65,92,.06), transparent);}
+  .wktag{display:flex; align-items:baseline; gap:13px;}
+  .wktag .big{font-family:'Saira Condensed'; font-weight:800; font-size:38px; line-height:.85; text-transform:uppercase; white-space:nowrap; flex:none;}
+  .before .wktag .big{color:var(--cold);} .after .wktag .big{color:var(--hi);}
+  .wktag .rec{font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.06em; color:var(--dim);}
+
+  .quote{padding:15px 17px; border-radius:3px; position:relative;}
+  .before .quote{background:var(--ink2); border:1px solid var(--cold2);}
+  .after .quote{background:rgba(232,65,92,.07); border:1px solid #6a2638; border-left:3px solid var(--scr);}
+  .quote .qh{display:flex; align-items:center; gap:9px; margin-bottom:9px;}
+  .quote .tab{font-family:'JetBrains Mono'; font-size:9.5px; font-weight:700; letter-spacing:.1em; padding:3px 8px; border-radius:2px; white-space:nowrap;}
+  .before .quote .tab{background:var(--cold2); color:#AEB4C2;}
+  .after .quote .tab{background:var(--scr); color:#fff;}
+  .quote .qh .hv{margin-left:auto; font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.04em;}
+  .before .quote .qh .hv{color:var(--cold);} .after .quote .qh .hv{color:var(--scr-soft);}
+  .quote .qt{font-size:14px; line-height:1.55; font-style:italic;}
+  .before .quote .qt{color:#9499A8;} .after .quote .qt{color:#E2DFD5;}
+  .after .quote .qt .mk{color:var(--scr-soft); font-style:normal; font-weight:600;}
+
+  .stats{display:flex; flex-direction:column; gap:13px;}
+  .sh{font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .sh::after{content:""; flex:1; height:1px; background:var(--line);}
+  .stat .sl{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;}
+  .stat .nm{font-size:13px; color:var(--mid); display:flex; align-items:center; gap:9px;}
+  .stat .delta{font-family:'JetBrains Mono'; font-size:10.5px; padding:1px 7px; border-radius:3px;}
+  .delta.down{background:rgba(55,179,106,.14); color:var(--enc);} .delta.up{background:rgba(226,103,46,.16); color:var(--ember);} .delta.hold{background:var(--cold2); color:var(--cold);}
+  .stat .val{font-family:'Saira Condensed'; font-weight:800; font-size:21px;}
+  .before .stat .val{color:var(--cold);}
+  .track{position:relative; height:9px; border-radius:5px; background:var(--ink2); border:1px solid var(--line); overflow:visible;}
+  .fill{position:absolute; left:0; top:0; bottom:0; border-radius:5px; transition:width .9s cubic-bezier(.3,.8,.3,1) .25s;}
+  .ghost{position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--cold);}
+  .ghost::after{content:"wk1"; position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-family:'JetBrains Mono'; font-size:8px; color:var(--cold); white-space:nowrap;}
+
+  /* center catalyst */
+  .between{position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:0 16px;}
+  .between::before{content:""; position:absolute; top:30px; bottom:30px; left:50%; transform:translateX(-50%); width:2px; background:repeating-linear-gradient(var(--line2) 0 5px, transparent 5px 11px);}
+  .note{position:relative; z-index:2; width:184px; background:var(--bone); color:var(--bone-ink); border-radius:4px; padding:15px 15px 16px; text-align:center; box-shadow:0 -2px 0 var(--gold), 0 16px 34px rgba(0,0,0,.4);}
+  .note .k{font-family:'JetBrains Mono'; font-size:9px; letter-spacing:.13em; color:var(--bone3); margin-bottom:9px;}
+  .note .fb{display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:3px; background:var(--bone-ink); color:var(--bone); font-family:'Saira Condensed'; font-weight:700; font-size:16px; letter-spacing:.03em; text-transform:uppercase;}
+  .note .star{color:var(--gold);}
+  .note .sub{font-size:11px; color:#5C5237; margin-top:11px; line-height:1.45;}
+  .spark{position:relative; z-index:2; width:48px; height:48px; border-radius:50%; background:var(--ember); display:grid; place-items:center; box-shadow:0 0 0 7px rgba(226,103,46,.14), 0 8px 22px rgba(226,103,46,.4);}
+  .reforge{position:relative; z-index:2; font-family:'Saira Condensed'; font-weight:800; font-size:16px; letter-spacing:.05em; color:var(--ember); text-transform:uppercase; text-align:center; line-height:.95;}
+
+  /* result band */
+  .result{display:grid; grid-template-columns:auto 1fr 1fr; align-items:center; gap:0; padding:16px 46px; background:var(--ink2); border-top:1px solid var(--line); border-bottom:3px solid var(--hi);}
+  .result .rl{font-family:'Saira Condensed'; font-weight:800; font-size:18px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); padding-right:30px; border-right:1px solid var(--line2); margin-right:30px;}
+  .result .stat2{display:flex; align-items:center; gap:16px;}
+  .result .stat2 .lab{font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.12em; color:var(--dim); text-transform:uppercase; width:96px; line-height:1.35;}
+  .result .prog{display:flex; align-items:center; gap:13px; font-family:'Saira Condensed'; font-weight:800; font-size:34px;}
+  .result .prog .a{color:var(--cold);} .result .prog .arr{color:var(--dim); font-size:20px;} .result .prog .b{color:var(--hi);}
+  .result .prog .up{font-family:'JetBrains Mono'; font-size:13px; font-weight:700; color:var(--enc); align-self:center;}
+  .result .prog .b.warn{color:var(--gold); font-size:24px;}
+
+  footer{padding:10px 46px 12px; font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.04em; color:var(--dim); display:flex; gap:9px; align-items:center;}
+  footer .sep{color:var(--line2);}
+
+  .replay{position:absolute; bottom:11px; right:158px; z-index:9; display:inline-flex; align-items:center; gap:7px; height:27px; padding:0 12px; border-radius:3px; background:var(--ink2); border:1px solid var(--line2); color:var(--mid); font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.06em; cursor:pointer;}
+  .replay:hover{color:var(--hi); border-color:var(--gold);}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <div class="strip">
+    <div class="l"><span class="mk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 14l6-2 2-6 3 9 2-3 5 2" stroke="#111219" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>FormForge AI · Coach Record</div>
+    <div class="fighter">The Scrutinizer · Training Log</div>
+    <div class="r">RECORD №041 → №048</div>
+  </div>
+
+  <div class="hero">
+    <div>
+      <div class="ey">Between bouts · self-improvement</div>
+      <h1>Your corner<br><em>re-forged</em> itself.</h1>
+    </div>
+    <div class="lede">Same squat, same flaw — one week apart. You told The Scrutinizer it was too harsh, and <b>your feedback rewrote how it coaches you.</b></div>
+  </div>
+
+  <div class="camp">
+    <!-- WEEK 1 -->
+    <div class="wk before">
+      <div class="wktag"><span class="big">Week 1</span><span class="rec">RECORD №041</span></div>
+      <div class="quote">
+        <div class="qh"><span class="tab">RED CORNER · WK1</span><span class="hv">HARSHNESS 0.50</span></div>
+        <div class="qt">"Textbook failure of motor control. Your lumbar spine is taking load it has no business taking. Stop adding weight — now."</div>
+      </div>
+      <div class="stats">
+        <div class="sh">Persona · before</div>
+        <div class="stat"><div class="sl"><span class="nm">Harshness</span><span class="val">0.50</span></div><div class="track"><div class="fill" style="width:50%;background:var(--cold)"></div></div></div>
+        <div class="stat"><div class="sl"><span class="nm">Caution (injury)</span><span class="val">0.40</span></div><div class="track"><div class="fill" style="width:40%;background:var(--cold)"></div></div></div>
+      </div>
+    </div>
+
+    <!-- BETWEEN -->
+    <div class="between">
+      <div class="note">
+        <div class="k">CORNER INSTRUCTION</div>
+        <div class="fb"><span class="star">★</span> "too harsh"</div>
+        <div class="sub">Your rating of The Scrutinizer after Record №041.</div>
+      </div>
+      <div class="spark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="#fff"/></svg></div>
+      <div class="reforge">Persona<br>re-forged</div>
+    </div>
+
+    <!-- WEEK 2 -->
+    <div class="wk after">
+      <div class="wktag"><span class="big">Week 2</span><span class="rec">RECORD №048</span></div>
+      <div class="quote">
+        <div class="qh"><span class="tab">RED CORNER · WK2</span><span class="hv">HARSHNESS 0.35</span></div>
+        <div class="qt">"The forward lean's still the <span class="mk">priority</span> — but you've clearly been working it. Keep load light till the brace holds. You're closer than you think."</div>
+      </div>
+      <div class="stats">
+        <div class="sh">Persona · after <span class="delta down" style="margin-left:2px">▼ softened</span></div>
+        <div class="stat"><div class="sl"><span class="nm">Harshness <span class="delta down">0.50 → 0.35</span></span><span class="val" style="color:var(--scr)">0.35</span></div><div class="track"><div class="ghost" style="left:50%"></div><div class="fill" data-w="35%" style="width:35%;background:var(--scr)"></div></div></div>
+        <div class="stat"><div class="sl"><span class="nm">Caution (injury) <span class="delta up">0.40 → 0.55</span></span><span class="val" style="color:var(--ember)">0.55</span></div><div class="track"><div class="ghost" style="left:40%"></div><div class="fill" data-w="55%" style="width:55%;background:var(--ember)"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="result">
+    <div class="rl">The<br>Result</div>
+    <div class="stat2">
+      <div class="lab">Form score</div>
+      <div class="prog"><span class="a">65</span><span class="arr">→</span><span class="b">74</span><span class="up">▲ +9</span></div>
+    </div>
+    <div class="stat2">
+      <div class="lab">Forward lean</div>
+      <div class="prog"><span class="a" style="font-size:24px">HIGH</span><span class="arr">→</span><span class="b warn">MODERATE</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>⚕ FOR INFORMATION ONLY — NOT MEDICAL ADVICE.</span><span class="sep">|</span>
+    <span>COACH PERSONA ADAPTS TO YOUR FEEDBACK; IT DOES NOT DIAGNOSE. STOP AND CONSULT A PROFESSIONAL IF YOU FEEL PAIN.</span>
+  </footer>
+</div>
+
+<a href="../FormForge%20Concepts.html" style="position:absolute;bottom:11px;right:22px;z-index:9;display:inline-flex;align-items:center;gap:7px;height:27px;padding:0 12px;border-radius:3px;background:#171922;border:1px solid #373B4C;color:#9A988C;font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.06em;text-decoration:none;">← Concepts</a>
+<button class="replay" id="replay">↻ REPLAY</button>
+
+<script>
+  const stage = document.getElementById('stage');
+  const fills = document.querySelectorAll('.after .fill');
+  function play(){
+    fills.forEach((f,i)=>{ f.style.transition='none'; f.style.width = (i===0?'50%':'40%'); });
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      fills.forEach(f=>{ f.style.transition=''; f.style.width = f.dataset.w; });
+    }));
+  }
+  document.getElementById('replay').addEventListener('click', play);
+  if(!new URLSearchParams(location.search).has('still')) play();
+</script>
+</body>
+</html>

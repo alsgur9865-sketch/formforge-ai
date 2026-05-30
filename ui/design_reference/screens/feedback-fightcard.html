@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormForge AI — Score the Corners</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800;900&family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#111219; --ink2:#171922; --panel:#1A1D28; --line:#2A2D3A; --line2:#373B4C;
+    --hi:#ECEAE2; --mid:#9A988C; --dim:#67655B;
+    --enc:#37B36A; --enc-soft:#8FE0B0; --scr:#E8415C; --scr-soft:#F79DAC; --gold:#C9A24B; --gold2:#E2C57A; --ember:#E2672E;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{width:1440px; height:880px; overflow:hidden; position:relative;}
+  body{background:var(--ink); color:var(--hi); font-family:'Archivo',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  .stage{height:100%; display:flex; flex-direction:column;}
+
+  .strip{display:flex; align-items:center; justify-content:space-between; padding:13px 46px; background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px), var(--ink2);
+    border-bottom:3px solid var(--hi);}
+  .strip .l{display:flex; align-items:center; gap:11px; font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--mid);}
+  .strip .l .mk{width:24px; height:24px; border-radius:6px; display:grid; place-items:center; background:var(--hi);}
+  .strip .c{font-family:'Saira Condensed'; font-weight:800; font-size:18px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); white-space:nowrap;}
+  .strip .r{font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.14em; color:var(--dim); white-space:nowrap;}
+
+  .body{flex:1; display:flex; flex-direction:column; justify-content:center; padding:24px 46px; gap:22px; max-width:1080px; margin:0 auto; width:100%; min-height:0;}
+  .ey{font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.18em; color:var(--ember); text-transform:uppercase;}
+  h1{font-family:'Saira Condensed'; font-weight:900; font-size:50px; line-height:.84; text-transform:uppercase; letter-spacing:.01em; margin:7px 0 6px;}
+  .lede{font-size:14.5px; color:var(--mid); line-height:1.5; max-width:620px;}
+  .lede b{color:var(--hi);}
+
+  .rows{display:flex; flex-direction:column; gap:13px;}
+  .row{display:grid; grid-template-columns:300px 1fr; align-items:center; gap:24px; padding:16px 20px; border:1px solid var(--line); border-radius:5px; background:var(--ink2);}
+  .row.enc{border-left:3px solid var(--enc);} .row.scr{border-left:3px solid var(--scr);} .row.med{border-left:3px solid var(--gold);}
+  .who{display:flex; align-items:center; gap:13px;}
+  .who .av{width:42px; height:42px; border-radius:10px; display:grid; place-items:center; flex:none;}
+  .row.enc .av{background:rgba(55,179,106,.14); border:1px solid rgba(55,179,106,.4);}
+  .row.scr .av{background:rgba(232,65,92,.14); border:1px solid rgba(232,65,92,.4);}
+  .row.med .av{background:rgba(201,162,75,.14); border:1px solid rgba(201,162,75,.4);}
+  .who .nm{font-family:'Saira Condensed'; font-weight:700; font-size:20px; text-transform:uppercase; letter-spacing:.03em; line-height:1; white-space:nowrap;}
+  .row.enc .nm{color:var(--enc-soft);} .row.scr .nm{color:var(--scr-soft);} .row.med .nm{color:var(--gold2);}
+  .who .rl{font-family:'JetBrains Mono'; font-size:10px; color:var(--dim); margin-top:5px; letter-spacing:.04em; white-space:nowrap;}
+
+  .seg{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .opt{padding:11px 10px; text-align:center; border:1px solid var(--line2); border-radius:4px; background:var(--ink); cursor:pointer; font-family:'Saira Condensed'; font-weight:600; font-size:16px; letter-spacing:.04em; text-transform:uppercase; color:var(--mid); transition:.14s;}
+  .opt:hover{border-color:var(--mid); color:var(--hi);}
+  .opt .sm{display:block; font-family:'JetBrains Mono'; font-size:9px; letter-spacing:.04em; color:var(--dim); margin-top:3px; text-transform:none;}
+  .row.enc .opt.on{background:var(--enc); border-color:var(--enc); color:#06240F;}
+  .row.scr .opt.on{background:var(--scr); border-color:var(--scr); color:#fff;}
+  .row.enc .opt.on .sm, .row.scr .opt.on .sm{color:rgba(255,255,255,.7);}
+  .opt.on .sm{color:rgba(0,0,0,.55);}
+
+  .stars{display:flex; align-items:center; gap:10px;}
+  .star{cursor:pointer; color:var(--line2); transition:.12s; line-height:1;}
+  .star svg{display:block; width:34px; height:34px;}
+  .star.on{color:var(--gold);}
+  .stars .lbl{margin-left:8px; font-family:'JetBrains Mono'; font-size:12px; color:var(--mid); letter-spacing:.04em;}
+
+  .note{display:flex; align-items:center; gap:12px; padding:13px 16px; border:1px solid var(--line2); border-radius:5px; background:var(--ink2);}
+  .note .nl{font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.12em; color:var(--dim); text-transform:uppercase; white-space:nowrap;}
+  .note input{flex:1; background:none; border:none; outline:none; color:var(--hi); font-family:'Archivo'; font-size:14px;}
+  .note input::placeholder{color:var(--dim);}
+
+  .foot{display:flex; align-items:center; justify-content:space-between; gap:20px;}
+  .hint{font-family:'JetBrains Mono'; font-size:11px; color:var(--dim); letter-spacing:.03em; max-width:560px; line-height:1.5;}
+  .submit{display:inline-flex; align-items:center; gap:11px; padding:15px 28px; border:none; border-radius:4px; background:var(--ember); color:#fff; font-family:'Saira Condensed'; font-weight:800; font-size:19px; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; white-space:nowrap;}
+  .submit:hover{filter:brightness(1.08);}
+
+  /* sent state */
+  .sent-banner{display:none; align-items:center; gap:16px; padding:16px 22px; border-radius:5px; background:linear-gradient(90deg, rgba(226,103,46,.16), rgba(201,162,75,.1)); border:1px solid rgba(226,103,46,.4);}
+  .sent .sent-banner{display:flex;}
+  .sent .foot, .sent .note{display:none;}
+  .sent-banner .spark{width:44px; height:44px; border-radius:50%; background:var(--ember); display:grid; place-items:center; flex:none; animation:pls 1.6s ease-in-out infinite;}
+  @keyframes pls{0%,100%{box-shadow:0 0 0 6px rgba(226,103,46,.14);}50%{box-shadow:0 0 0 11px rgba(226,103,46,.04);}}
+  .sent-banner .st{flex:1;}
+  .sent-banner .st b{font-family:'Saira Condensed'; font-weight:800; font-size:21px; text-transform:uppercase; letter-spacing:.03em; display:block;}
+  .sent-banner .st span{font-size:13px; color:var(--mid);}
+  .sent-banner a{display:inline-flex; align-items:center; gap:8px; padding:12px 18px; border-radius:4px; border:1px solid var(--gold); color:var(--gold2); font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.04em; text-decoration:none; white-space:nowrap;}
+  .sent-banner a:hover{background:rgba(201,162,75,.12);}
+
+  footer{padding:11px 46px 13px; font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.04em; color:var(--dim); display:flex; gap:9px; align-items:center; border-top:1px solid var(--line); background:var(--ink2);}
+  footer .sep{color:var(--line2);}
+  .backlink{position:absolute; bottom:11px; right:22px; z-index:9; display:inline-flex; align-items:center; gap:7px; height:27px; padding:0 12px; border-radius:3px; background:#171922; border:1px solid #373B4C; color:#9A988C; font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.06em; text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <div class="strip">
+    <div class="l"><span class="mk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 14l6-2 2-6 3 9 2-3 5 2" stroke="#111219" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>FormForge AI</div>
+    <div class="c">★ Score the Corners</div>
+    <div class="r">RECORD №048 · POST-BOUT</div>
+  </div>
+
+  <div class="body">
+    <div>
+      <div class="ey">You're the judge</div>
+      <h1>Score the corners.</h1>
+      <div class="lede">Your card trains them. Tell each coach how they fought this round — the <b>personas adapt for your next bout.</b></div>
+    </div>
+
+    <div class="rows">
+      <div class="row enc" data-group="enc">
+        <div class="who"><span class="av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 21c0-5 0-7-3-9M12 21c0-4 1-6 4-8" stroke="#8FE0B0" stroke-width="1.7" stroke-linecap="round"/></svg></span><div><div class="nm">The Encourager</div><div class="rl">AFFECTS · WARMTH</div></div></div>
+        <div class="seg">
+          <div class="opt" data-v="warm">Too warm<span class="sm">soften the praise</span></div>
+          <div class="opt on" data-v="ok">Just right<span class="sm">keep it</span></div>
+          <div class="opt" data-v="cold">Too cold<span class="sm">more warmth</span></div>
+        </div>
+      </div>
+
+      <div class="row scr" data-group="scr">
+        <div class="who"><span class="av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="10.5" cy="10.5" r="5.5" stroke="#F79DAC" stroke-width="1.8"/><path d="M15 15l5 5" stroke="#F79DAC" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><div class="nm">The Scrutinizer</div><div class="rl">AFFECTS · HARSHNESS</div></div></div>
+        <div class="seg">
+          <div class="opt on" data-v="harsh">Too harsh<span class="sm">ease up</span></div>
+          <div class="opt" data-v="ok">Just right<span class="sm">keep it</span></div>
+          <div class="opt" data-v="soft">Too soft<span class="sm">push harder</span></div>
+        </div>
+      </div>
+
+      <div class="row med">
+        <div class="who"><span class="av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3v15M5 7l7-3 7 3M5 7l-2 5h4l-2-5zM19 7l-2 5h4l-2-5zM8 19h8" stroke="#C9A24B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="nm">The Mediator</div><div class="rl">HEAD COACH · OVERALL CALL</div></div></div>
+        <div class="stars" id="stars">
+          <span class="star on" data-n="1"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.1l6.9-.8z"/></svg></span>
+          <span class="star on" data-n="2"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.1l6.9-.8z"/></svg></span>
+          <span class="star on" data-n="3"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.1l6.9-.8z"/></svg></span>
+          <span class="star on" data-n="4"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.1l6.9-.8z"/></svg></span>
+          <span class="star" data-n="5"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.1l6.9-.8z"/></svg></span>
+          <span class="lbl" id="starlbl">4 / 5 · solid call</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="nl">Notes to the corner</span>
+      <input placeholder="One line for the coaches — optional…">
+    </div>
+
+    <div class="foot">
+      <div class="hint">Your scores feed back into each persona before your next bout — this is the loop you saw in <b style="color:var(--mid)">Between Bouts</b>.</div>
+      <button class="submit" id="submit">Submit your card →</button>
+    </div>
+
+    <div class="sent-banner">
+      <div class="spark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="#fff"/></svg></div>
+      <div class="st"><b>Card logged — the corners are re-forging.</b><span>The Scrutinizer will ease its harshness next bout. Thanks, judge.</span></div>
+      <a href="screens/evolution-fightcard.html">See how they evolve →</a>
+    </div>
+  </div>
+
+  <footer>
+    <span>⚕ FOR INFORMATION ONLY — NOT MEDICAL ADVICE.</span><span class="sep">|</span>
+    <span>FEEDBACK TUNES COACH PERSONA, NOT A DIAGNOSIS. STOP AND CONSULT A PROFESSIONAL IF YOU FEEL PAIN.</span>
+  </footer>
+</div>
+
+<a href="../FormForge%20Concepts.html" class="backlink">← Concepts</a>
+
+<script>
+  document.querySelectorAll('.seg').forEach(function(seg){
+    seg.addEventListener('click', function(e){
+      var o=e.target.closest('.opt'); if(!o) return;
+      seg.querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
+      o.classList.add('on');
+    });
+  });
+  var stars=document.querySelectorAll('#stars .star'), lbl=document.getElementById('starlbl');
+  var words={1:'needs work',2:'below par',3:'fair call',4:'solid call',5:'perfect call'};
+  function setStars(n){ stars.forEach(s=>s.classList.toggle('on', +s.dataset.n<=n)); lbl.textContent=n+' / 5 · '+words[n]; }
+  stars.forEach(s=>{ s.addEventListener('mouseenter',()=>setStars(+s.dataset.n)); s.addEventListener('click',()=>{ s.dataset.locked=1; setStars(+s.dataset.n); }); });
+  document.getElementById('submit').addEventListener('click', function(){ document.getElementById('stage').classList.add('sent'); });
+</script>
+</body>
+</html>

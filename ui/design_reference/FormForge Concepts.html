@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormForge AI — UI Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0D14; --bg2:#10131D; --panel:#141826; --line:#242a3a; --line2:#323a50;
+    --hi:#EDF0F7; --mid:#99A2B8; --dim:#5C6478;
+    --enc:#36D17C; --scr:#FF5C78; --med:#7B97FF; --ember:#DD5A28;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{min-height:100vh; background:
+      radial-gradient(900px 500px at 15% -5%, rgba(54,209,124,.07), transparent 60%),
+      radial-gradient(900px 500px at 85% -5%, rgba(255,92,120,.07), transparent 60%),
+      var(--bg);
+    color:var(--hi); font-family:'Hanken Grotesk',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1640px; margin:0 auto; padding:46px 56px 60px;}
+
+  /* masthead */
+  .mast{display:flex; align-items:flex-end; justify-content:space-between; gap:30px; padding-bottom:26px; border-bottom:1px solid var(--line); margin-bottom:14px;}
+  .id{display:flex; align-items:center; gap:15px;}
+  .mark{width:54px; height:54px; border-radius:14px; display:grid; place-items:center; background:linear-gradient(145deg,#1a1f30,#10131d); border:1px solid var(--line2); box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .id h1{font-family:'Space Grotesk'; font-weight:700; font-size:30px; letter-spacing:-.015em; line-height:1;}
+  .id h1 .dot{color:var(--ember);}
+  .id .tl{font-size:14px; color:var(--mid); margin-top:8px; max-width:520px; line-height:1.45;}
+  .legend{display:flex; flex-direction:column; gap:9px; font-family:'JetBrains Mono'; font-size:12px;}
+  .legend .lg{display:flex; align-items:center; gap:9px; color:var(--mid);}
+  .legend .lg i{width:11px; height:11px; border-radius:3px;}
+  .legend .lg b{color:var(--hi); font-weight:500;}
+
+  .kick{font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase; margin:30px 0 18px; display:flex; align-items:center; gap:12px;}
+  .kick::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  /* featured / recommended */
+  .feature{display:grid; grid-template-columns:1.22fr 1fr; gap:0; background:var(--panel); border:1px solid var(--line2); border-radius:20px; overflow:hidden; text-decoration:none; color:inherit; margin-bottom:48px;
+    transition:transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s, border-color .22s;}
+  .feature:hover{transform:translateY(-4px); border-color:var(--ember); box-shadow:0 30px 70px rgba(0,0,0,.5);}
+  .feature .preview{height:386px; border-bottom:none; border-right:1px solid var(--line);}
+  .feature .fmeta{padding:34px 38px; display:flex; flex-direction:column; justify-content:center;}
+  .ribbon{display:inline-flex; align-items:center; gap:8px; align-self:flex-start; font-family:'JetBrains Mono'; font-size:11px; font-weight:500; letter-spacing:.1em; color:var(--ember); background:rgba(221,90,40,.1); border:1px solid rgba(221,90,40,.4); padding:6px 12px; border-radius:20px; margin-bottom:18px;}
+  .feature h2{font-family:'Space Grotesk'; font-weight:700; font-size:30px; letter-spacing:-.02em; margin-bottom:6px;}
+  .feature .ftag{font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.06em; color:var(--mid); margin-bottom:16px;}
+  .feature p{font-size:15px; color:var(--mid); line-height:1.6;}
+  .feature p b{color:var(--hi); font-weight:600;}
+  .feature .open{margin-top:20px; align-self:flex-start; display:inline-flex; align-items:center; gap:9px; font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.04em; color:var(--ember); border:1px solid rgba(221,90,40,.45); padding:10px 16px; border-radius:9px;}
+  .sec{font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase; margin:0 0 18px; display:flex; align-items:center; gap:12px;}
+  .sec::after{content:""; flex:1; height:1px; background:var(--line);}
+  .feat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-bottom:50px;}
+  .feat .preview{height:300px;}
+  .feat:hover{border-color:var(--ember);}
+
+  /* card grid */
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:26px;}
+  .card{display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); border-radius:18px; overflow:hidden; text-decoration:none; color:inherit;
+    transition:transform .22s cubic-bezier(.2,.7,.3,1), border-color .22s, box-shadow .22s;}
+  .card:hover{transform:translateY(-5px); border-color:var(--accent,var(--line2)); box-shadow:0 26px 60px rgba(0,0,0,.5);}
+
+  .preview{position:relative; height:300px; overflow:hidden; background:#000; border-bottom:1px solid var(--line);}
+  .preview .frame{position:absolute; top:0; left:0; transform-origin:top left; border:none; pointer-events:none;}
+  .preview .hint{position:absolute; bottom:12px; right:12px; z-index:3; display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:9px;
+    background:rgba(13,16,24,.78); backdrop-filter:blur(6px); border:1px solid var(--line2); font-family:'JetBrains Mono'; font-size:11px; color:var(--hi); letter-spacing:.03em;
+    opacity:0; transform:translateY(4px); transition:.22s;}
+  .card:hover .preview .hint{opacity:1; transform:translateY(0);}
+  .num{position:absolute; top:14px; left:16px; z-index:3; font-family:'Space Grotesk'; font-weight:700; font-size:15px; width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:rgba(13,16,24,.7); backdrop-filter:blur(6px); border:1px solid var(--line2);}
+
+  .meta{padding:18px 20px 20px;}
+  .mtag{display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.06em; padding:4px 10px; border-radius:20px; margin-bottom:11px; border:1px solid;}
+  .meta h2{font-family:'Space Grotesk'; font-weight:600; font-size:19px; letter-spacing:-.01em; margin-bottom:7px;}
+  .meta p{font-size:13.5px; color:var(--mid); line-height:1.5;}
+
+  footer{margin-top:34px; padding-top:18px; border-top:1px solid var(--line); display:flex; gap:10px; align-items:center; font-family:'JetBrains Mono'; font-size:11.5px; color:var(--dim);}
+  footer .sep{color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mast">
+    <div class="id">
+      <div class="mark"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M3 14l6-2 2-6 3 9 2-3 5 2" stroke="#36D17C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19" cy="6" r="2" fill="#DD5A28"/></svg></div>
+      <div>
+        <h1>FormForge<span class="dot">.</span>AI <span style="font-weight:400;font-size:18px;color:var(--mid)">· UI Concepts</span></h1>
+        <div class="tl">Two AI coaches debate your workout form in real time. You referee. Your feedback re-forges their personas. Three key screens, designed as <b style="color:var(--hi);font-weight:600">one “Fight Card” system</b>.</div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="lg"><i style="background:var(--enc)"></i><b>The Encourager</b> — warm green</div>
+      <div class="lg"><i style="background:var(--scr)"></i><b>The Scrutinizer</b> — cold red</div>
+      <div class="lg"><i style="background:var(--med)"></i><b>The Mediator</b> — indigo</div>
+    </div>
+  </div>
+
+  <div class="kick">★ Recommended — the full product as one "Fight Card" system · 6 screens, in flow</div>
+
+  <div class="feat-grid">
+    <a class="card feat" href="screens/upload-fightcard.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">1</span>
+        <iframe class="frame" src="screens/upload-fightcard.html?still=1" scrolling="no" width="1440" height="920" style="transform:scale(0.34)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.4);background:rgba(221,90,40,.1)">01 · WEIGH-IN</span>
+        <h2>Submit your tape</h2>
+        <p>Drag in a workout video, pick a weight class (squat / deadlift / push-up), flag injuries for the corners — or watch a sample bout.</p>
+      </div>
+    </a>
+
+    <a class="card feat" href="screens/debate-fightcard.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">2</span>
+        <iframe class="frame" src="screens/debate-fightcard.html?still=1" scrolling="no" width="1440" height="1180" style="transform:scale(0.34)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.4);background:rgba(221,90,40,.1)">02 · THE BOUT ★</span>
+        <h2>The Live Debate</h2>
+        <p>Two corners, rounds with a bell, you as referee. A tale-of-the-tape face-off and round-by-round counters — the hero screen.</p>
+      </div>
+    </a>
+
+    <a class="card feat" href="screens/consensus-fightcard.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">3</span>
+        <iframe class="frame" src="screens/consensus-fightcard.html?still=1" scrolling="no" width="1440" height="880" style="transform:scale(0.34)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.4);background:rgba(221,90,40,.1)">03 · THE DECISION</span>
+        <h2>Official Decision</h2>
+        <p>The Head Coach's ruling as a <b>judges' decision card</b> — both corners converge on a stamped verdict, priority actions, and the recurring prior record (MCP recall).</p>
+      </div>
+    </a>
+
+    <a class="card feat" href="screens/feedback-fightcard.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">4</span>
+        <iframe class="frame" src="screens/feedback-fightcard.html?still=1" scrolling="no" width="1440" height="880" style="transform:scale(0.34)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.4);background:rgba(221,90,40,.1)">04 · YOUR CARD</span>
+        <h2>Score the Corners</h2>
+        <p>You're the judge — rate each coach (too harsh / just right / too soft). Your scorecard <b>re-forges their personas</b> for the next bout. Interactive.</p>
+      </div>
+    </a>
+
+    <a class="card feat" href="screens/evolution-fightcard.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">5</span>
+        <iframe class="frame" src="screens/evolution-fightcard.html?still=1" scrolling="no" width="1440" height="920" style="transform:scale(0.34)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.4);background:rgba(221,90,40,.1)">05 · EVOLUTION</span>
+        <h2>Between Bouts</h2>
+        <p>Your feedback as a <b>corner instruction</b> — persona stats shift week to week (harshness 0.50 → 0.35) and your form score climbs 65 → 74.</p>
+      </div>
+    </a>
+
+    <a class="card feat" href="screens/trace-fightcard.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">6</span>
+        <iframe class="frame" src="screens/trace-fightcard.html?still=1" scrolling="no" width="1440" height="900" style="transform:scale(0.34)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.4);background:rgba(221,90,40,.1)">06 · THE TAPE</span>
+        <h2>Official Timesheet</h2>
+        <p>Phoenix trace as a bout timesheet — every span, latency and token, with the Mediator's <b>MCP self-introspection</b> highlighted. Proves the multi-agent stack.</p>
+      </div>
+    </a>
+  </div>
+
+  <div class="sec">Earlier explorations · click to open</div>
+
+  <div class="grid">
+    <a class="card" href="screens/debate.html" style="--accent:var(--enc)">
+      <div class="preview">
+        <span class="num">1</span>
+        <iframe class="frame" src="screens/debate.html?still=1" scrolling="no" width="1440" height="1040" style="transform:scale(0.3076)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--enc);border-color:rgba(54,209,124,.35);background:rgba(54,209,124,.08)">A · DARK TECH ARENA</span>
+        <h2>Debate Live View</h2>
+        <p>The hero. Two coaches duel left vs right across a glowing spine — rounds stack, rebuttals cross-reference, then a convergence bar resolves it.</p>
+      </div>
+    </a>
+
+    <a class="card" href="screens/consensus.html" style="--accent:var(--med)">
+      <div class="preview">
+        <span class="num">2</span>
+        <iframe class="frame" src="screens/consensus.html?still=1" scrolling="no" width="1440" height="960" style="transform:scale(0.3076)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--med);border-color:rgba(123,151,255,.35);background:rgba(123,151,255,.08)">B · CLEAN CLINICAL TRUST</span>
+        <h2>Mediator Consensus</h2>
+        <p>Both coaches' positions converge inward to the Head Coach's verdict — priority actions, MCP memory recall, and confidence on each point.</p>
+      </div>
+    </a>
+
+    <a class="card" href="screens/evolution.html" style="--accent:var(--ember)">
+      <div class="preview">
+        <span class="num">3</span>
+        <iframe class="frame" src="screens/evolution.html?still=1" scrolling="no" width="1440" height="980" style="transform:scale(0.3076)"></iframe>
+        <span class="hint">Open full ↗</span>
+      </div>
+      <div class="meta">
+        <span class="mtag" style="color:var(--ember);border-color:rgba(221,90,40,.35);background:rgba(221,90,40,.08)">EXPERIMENTAL · FORGE</span>
+        <h2>Coach Evolution</h2>
+        <p>Before / after your feedback. Same squat, a re-forged coach — persona gauges shift (harshness 0.50 → 0.35) and the tone visibly softens.</p>
+      </div>
+    </a>
+  </div>
+
+  <footer>
+    <span>⚕ For information only — not medical advice.</span>
+    <span class="sep">|</span>
+    <span>FormForge AI · multi-agent form coaching · hackathon concept</span>
+  </footer>
+</div>
+<script>
+  function fit(){
+    document.querySelectorAll('.preview').forEach(function(p){
+      var f=p.querySelector('.frame');
+      var s=p.clientWidth/1440;
+      f.style.transform='scale('+s+')';
+    });
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('load', fit);
+  fit();
+</script>
+</body>
+</html>
