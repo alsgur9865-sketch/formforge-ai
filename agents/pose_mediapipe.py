@@ -102,6 +102,7 @@ class RepMetrics:
     back_angle_at_bottom: int     # 최저점의 등 각도
     back_angle_at_top: int        # 시작/끝의 등 각도
     tempo: dict[str, float]       # {"down_sec", "up_sec", "pause_sec"}
+    bottom_timestamp_sec: float = 0.0  # 최저점 시각 (Stage 2 keyframe 추출용)
 
 
 @dataclass
@@ -124,6 +125,7 @@ class PoseAnalysis:
                 {
                     "rep_number": r.rep_number,
                     "depth_degrees": r.depth_degrees,
+                    "bottom_timestamp_sec": r.bottom_timestamp_sec,
                     "back_angle_at_bottom": r.back_angle_at_bottom,
                     "back_angle_at_top": r.back_angle_at_top,
                     "tempo": r.tempo,
@@ -465,6 +467,7 @@ def analyze_video(video_path: str, exercise_type: str = "squat",
             depth_degrees=depth,
             back_angle_at_bottom=back_bottom,
             back_angle_at_top=back_top,
+            bottom_timestamp_sec=round(bottom_frame.timestamp_sec, 3),
             tempo={"down_sec": round(down_sec, 2),
                    "up_sec":   round(up_sec, 2),
                    "pause_sec": 0.0},
