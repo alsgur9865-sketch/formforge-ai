@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-30 (세션 10 — **Task 4.1 Phase 2 완전 e2e 연결**: 영상 → PoseExtractor → 토론 → 합의(Mediator+MCP) → Firestore, acceptance **8/8 통과**. 차별화 #4 Multi-modal × Multi-agent 실증)
-**현재 단계**: Day 1 ✅ · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · **Phase 2 완전 e2e ✅** · Day 5 Task 5.1 ✅ · Day 8 ✅ · **Day 9 e2e 완성(영상 합류) ✅** · Day 12 ✅ (P4 100%)
-**저장소 상태**: `341363a`·`1b2d5c0` 2커밋 push 대기 + 세션 10 변경(`orchestrator.py` run_full_e2e) 커밋 예정 → 총 3커밋. push 는 사용자 직접(main 직접 push 차단).
+**최종 갱신**: 2026-05-30 (세션 11 — **Day 13 Self-Improvement Loop**(LLM-as-a-Judge + 양방향 페르소나, P3 70%) + **Day 12.3 MCP Cloud Run 배포 준비** + Second Eye 리뷰 4건 수정. 차별화 #5 실증)
+**현재 단계**: Day 1~5 ✅ · Day 8·9 ✅ · **Day 12 ✅**(12.1·12.2 P4 100% + **12.3 배포준비**) · **Day 13 ✅**(13.1·13.2 P3 70%) · 남은 핵심: Day 14 UI·배포
+**저장소 상태**: `341363a`·`1b2d5c0`·`bbc3445` 3커밋 push 대기 + 세션 11 변경 커밋 예정 → 총 4커밋. push 는 사용자 직접(main 직접 push 차단).
 
 ---
 
@@ -674,6 +674,62 @@ squat_demo.mp4
 
 ---
 
+## 🗓️ 세션 11 (2026-05-30) — Day 13 Self-Improvement Loop + Day 12.3 MCP 배포 준비 ⭐⭐
+
+> 영상 불필요 작업 2건. **P3 50→70%** + Day 12.3 배포준비. 차별화 #5(Self-improvement loop) 가동.
+
+### Day 13 — LLM-as-a-Judge + 양방향 페르소나 학습 (P3 50%→70%)
+**신규 파일**:
+- `evals/llm_judge.py` — LLM-as-a-Judge(`gemini-3.5-flash`). 토론 품질 0~1 + 페르소나 조정 추천 + reasoning. 명시 OTel 평가 span(품질점수/라벨 attribute).
+- `evals/feedback_handler.py` — 하이브리드 피드백 루프. process_feedback: 피드백→judge→페르소나 진화→Firestore.
+- `tests/test_feedback_loop.py` — 단위 14 + e2e 5.
+
+**grill-me 확정 — 하이브리드 설계**:
+- enum 피드백(warmth/harshness) delta 는 **결정론적 룩업 테이블**(too_harsh=-0.15, too_soft=+0.10, too_warm/cold=∓0.10, perfect=0). acceptance 정확값 보장(LLM 변동 차단).
+- detail 만 LLM judge 추천(자유텍스트 정성). learning_rate 미적용(ARCHITECTURE 6.2 의사코드와 모순 → **acceptance 가 ground truth**).
+- 범위: 13.1 feedback_handler + 13.2 llm_judge 둘 다 (13.3 UI는 Day 14).
+
+**검증**: 단위 14/14 + llm_judge 실호출(quality 0.7) + 피드백루프 e2e 5/5(too_harsh 0.5→0.35 정확, Firestore 영구 반영) + Phoenix register.
+
+### 🔑 중요 발견 — Gemini 3 family 는 Vertex `global` 엔드포인트만 서빙
+- `gemini-3.5-flash` 가 us-central1 에서 **404 NOT_FOUND**(`models.list()` 엔 보이나 리전 서빙 X).
+- `global` 리전에선 정상 → `llm_judge` 만 `location="global"` 오버라이드(다른 모듈은 us-central1 유지).
+- **향후 Gemini 3 계열 사용 시 항상 적용해야 하는 운영 메모.**
+
+### Day 12.3 — MCP server Cloud Run 배포 준비
+**신규 파일**:
+- `mcp/Dockerfile` — python:3.11-slim, **루트 빌드 컨텍스트**(phoenix_mcp_server 가 `from storage import` → mcp/+storage/ 함께 COPY 필요. TASKS 의 `cd mcp` 방식은 storage 없어 실패).
+- `mcp/requirements-mcp.txt` — MCP 전용 7개(mediapipe/opencv/adk/genai/streamlit 제외 → 이미지 경량).
+- `mcp/cloudbuild.yaml` — Day 14 배포용(Docker 로컬 불필요, Cloud Build 가 빌드), min-instances=1, secret 은 배포 후 주입.
+- `.dockerignore` — 컨텍스트 경량화 + secret(.env/service-account) 차단.
+- `agents/orchestrator.py` — MCP 다운 시 `run_mediator` 자동 fallback + Phoenix 경고 span(`mcp.fallback`).
+
+**HTTP transport 는 이미 구현됨**(세션 6, PHOENIX_MCP_TRANSPORT=http) → 검증만: `Uvicorn running on http://0.0.0.0:8765`.
+**검증**: http endpoint 노출 ✅ + MCP 다운 fallback PASS(앱 안 죽음, tool_calls=[]). docker build 로컬은 **Docker 미설치** → cloudbuild 경로 제공(실빌드 Day 14, GCP 비용).
+
+### Second Eye 리뷰 → 4건 수정 (사용자 승인 후)
+| # | 심각도 | 수정 |
+|---|---|---|
+| **#2** | 🔴 Critical | `judge_debate` 에 Firestore Timestamp 포함 persona_state 전달 → json.dumps TypeError. **문서 존재 사용자의 두 번째 피드백부터 self-improvement loop 가 터지던 버그**(첫 e2e는 문서 없어서 `_DEFAULT`(last_updated_at=None)로 통과했던 것). → 핵심 필드만 전달. 문서 존재 사용자 e2e 5/5 재검증. |
+| #4 | 🟡 | save_feedback 실패가 persona 업데이트(P3) 차단 → 블록 분리(persona 우선·독립). |
+| #3 | 🟡 | judge 프롬프트 warmth/harshness 규칙 misleading(실제 무시됨) → "detail만 LLM, 핵심은 외부 결정론" 명시. |
+| #6 | 🟢 | fallback_reason `[:500]` truncate(OTel attr 길이 가드). |
+
+미수정(의도): #5(중복 Phoenix register — feedback_handler vs orchestrator 별개 플래그)·#7(asyncio.run Streamlit 충돌) → **Day 14 부채**. 오탐 4건(#1 _label / #8 test_clamp 통과함 / #9 trace_id hex 세션7검증 / #10 _tracer ProxyTracer 안전).
+
+### 📊 절대원칙 진행률 (세션 11 종료)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | + llm_judge 평가 span + feedback_handler register |
+| P2 Encourager ↔ Scrutinizer | **100%** | |
+| P3 사용자 피드백 → 페르소나 | **70%** ✅ | LLM-as-a-Judge + 양방향 페르소나 진화 + Firestore 영구 반영(TASKS 13.2 목표 달성). Day 14 UI before/after 로 마무리 |
+| P4 Mediator + Phoenix MCP | **100%** | + MCP 다운 fallback(앱 안 죽음) |
+| P5 의료 면책 | **45%** | UI 전체 표시 Day 14 |
+
+> 차별화 #5 (Self-improvement loop) **실증** — too_harsh 피드백 → harshness 0.5→0.35 영구 반영 → 다음 토론 톤 변화. Arize 평가(`debate_quality_score`) Phoenix 송출.
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
@@ -754,9 +810,9 @@ squat_demo.mp4
 | Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 완전 e2e ✅ (실영상 run_full_e2e)** |
 | **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **완전 달성 (사전)** — 실영상 → PoseExtractor → 토론 → 합의 → 저장, acceptance 8/8 |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
-| Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2 ✅ (P4 100%)** · Phoenix REST + trace_id 루프 완성 · 12.3 배포준비만 남음 |
-| Self-Improvement | 13 (6/9) | LLM-as-a-Judge + 양방향 학습 | ⏭️ |
-| UI + Deploy | 14 (6/10) | Streamlit + Cloud Run 듀얼 배포 | ⏭️ |
+| Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2·12.3 ✅** (P4 100% + MCP Dockerfile/cloudbuild 배포준비, 실빌드만 Day14) |
+| Self-Improvement | 13 (6/9) | LLM-as-a-Judge + 양방향 학습 | 🟢 **13.1·13.2 ✅** (P3 70%, 하이브리드 피드백 루프, e2e 5/5). 13.3 before/after UI는 Day 14 |
+| UI + Deploy | 14 (6/10) | Streamlit + Cloud Run 듀얼 배포 | ⏭️ **남은 최대 작업** (UI + 듀얼 배포 + P5 면책 전체표시 + 부채 #5/#7) |
 | Submit | 15 (6/11) | 영상 + Devpost | ⏭️ |
 
 **최종 마감**: 2026-06-12 06:00 KST (= 6/11 안에 모든 제출 완료)

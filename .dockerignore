@@ -1,0 +1,29 @@
+# Cloud Build / docker build 컨텍스트에서 제외 (빌드 컨텍스트는 프로젝트 루트).
+# 이미지 경량화 + 시크릿이 빌드 컨텍스트/이미지에 절대 안 들어가게.
+
+# 가상환경 (수백 MB — 절대 업로드 금지)
+venv/
+.venv/
+
+# 파이썬 캐시
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# 시크릿 (보안 — 이미지/컨텍스트 유입 차단)
+.env
+.env.*
+!.env.example
+service-account.json
+*.json.json
+
+# VCS / 에디터 / 문서
+.git/
+.gitignore
+.claude/
+*.md
+docs/
+
+# MediaPipe 모델 바이너리 (MCP 빌드엔 불필요)
+data/models/
+*.task
