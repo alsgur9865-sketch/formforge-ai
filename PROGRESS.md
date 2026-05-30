@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-30 (세션 9 — 전신 측면 영상 도착·검증(미검출 0%) + PoseExtractor Stage1 정확도 묶음(rep 3개 정확) + Stage2 신규(Gemini 멀티모달) = **Day 5 Task 5.1 완성**)
-**현재 단계**: Day 1 ✅(1.6 전신영상 통과) · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · **Day 5 Task 5.1 ✅ (2-stage PoseExtractor)** · Day 8 ✅ · Day 9 e2e 골격 ✅ · **Day 12 ✅ (P4 100%)**
-**저장소 상태**: `eec574f`(정확도묶음) push 완료. **`341363a`(Task 5.1 Stage2) 1커밋 push 대기**. push 는 사용자 직접(main 직접 push 차단).
+**최종 갱신**: 2026-05-30 (세션 10 — **Task 4.1 Phase 2 완전 e2e 연결**: 영상 → PoseExtractor → 토론 → 합의(Mediator+MCP) → Firestore, acceptance **8/8 통과**. 차별화 #4 Multi-modal × Multi-agent 실증)
+**현재 단계**: Day 1 ✅ · Day 2 ✅ · Day 3 ✅ · Day 4 Phase 1 ✅ · **Phase 2 완전 e2e ✅** · Day 5 Task 5.1 ✅ · Day 8 ✅ · **Day 9 e2e 완성(영상 합류) ✅** · Day 12 ✅ (P4 100%)
+**저장소 상태**: `341363a`·`1b2d5c0` 2커밋 push 대기 + 세션 10 변경(`orchestrator.py` run_full_e2e) 커밋 예정 → 총 3커밋. push 는 사용자 직접(main 직접 push 차단).
 
 ---
 
@@ -628,6 +628,52 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 
 ---
 
+## 🗓️ 세션 10 (2026-05-30) — Task 4.1 Phase 2 완전 e2e 연결 (영상 → 토론 → 합의 → 저장) ⭐
+
+> PoseExtractor(세션 9)와 run_full_session(세션 6)을 잇는 마지막 연결. **sample pose_data 가 아닌 실제 영상**으로 전체 파이프라인 가동. 차별화 #4 (Multi-modal × Multi-agent) 완전 실증.
+
+### Claude Code 완료
+
+**`agents/orchestrator.py` — PoseExtractor prepend (역호환 보존)**
+- `run_full_e2e(video_uri, ...)`: 영상 → `run_pose_extractor()`(Stage1+2) → 신뢰도 가드 → `run_full_session()`(토론→합의→Firestore). 기존 `run_full_session` 은 미변경.
+- **blocking 보호**: PoseExtractor(cv2+mediapipe+gemini)를 `asyncio.to_thread()` 로 호출 → 이벤트 루프 안 막음.
+- **신뢰도 가드**: PoseExtractor 가 error dict(rep 0 / 무릎 신뢰도 낮음 / Gemini 실패) 반환 시 `PoseExtractionError` 예외 → **토론 단계 진입 차단**(쓰레기 입력 방지).
+- **스키마 호환 확인**: `run_pose_extractor()` 출력 = `sample_pose_data.json` 구조 + camera_angle/reasoning/warnings. 두 코치가 JSON 통째로 받으므로 변환 없이 그대로 전달.
+- 신규: `E2EResult` 데이터클래스(pose_extraction + session + latency) + CLI `--e2e [video]` 모드(acceptance 8개 자체 검증).
+
+### 검증 (`orchestrator.py --e2e`, 실제 squat_demo.mp4) — **acceptance 8/8 통과**
+```
+squat_demo.mp4
+  → PoseExtractor:  camera_angle=side, rep 3개, form_score=65, safety_flag 1개("과도한 전방 기울기")
+  → 두 코치 토론:   Round 1 합의(converged), shared_issue="과도한 전방 기울기"
+  → Mediator+MCP:   query_past_debates·query_similar_safety_flags 자동 호출 (P4)
+  → Firestore:      pose_data + consensus 저장
+```
+- ⭐ **실데이터 흐름 실증**: PoseExtractor 가 측면 영상에서 검출한 "전방 기울기"가 토론 공통 이슈 →
+  허리 부상 이력(lower_back_strain)과 연결 → Mediator 가 **"중량 20-30% 감량 + 상체 수직 유지"** 최우선 액션 통합.
+- acceptance: PoseExtractor rep≥1·camera_angle / 토론 라운드≥1 / Mediator consensus / MCP 자동호출 / P5 면책 / Firestore pose_data·consensus 저장 = **8/8**.
+
+### 관찰된 이슈 (정직 보고 — PROGRESS 부채로 이월)
+| # | 항목 | 처리 |
+|---|---|---|
+| 1 | **latency 113s** (목표 60s 초과) — pose 29.3s + mediator 44.5s(MCP subprocess 기동 + Phoenix REST 조회 + Gemini Pro tool). LLM 단계가 병목, 정량(Stage1)은 빠름. | 데모 영상(11.5s)엔 수용. 60s 목표 재조정 또는 최적화(MCP subprocess 재사용/병렬화/Mediator Flash 전환)는 추후. |
+| 2 | **MCP 타임아웃 1회** — query 중 1개가 5s ClientRequest timeout(첫 호출 subprocess cold start 추정). | ADK `_MCP_GRACEFUL_ERROR_HANDLING` 동작 → tool 2개 결국 다 호출 성공, **최종 결과 영향 없음**. |
+| 3 | `past_debate_references` 가 방금 만든 자기 자신 참조 | user_001 과거 토론이 이번 것뿐이라 발생(기존 부채). 반복 업로드 시 실제 과거 토론 참조. |
+
+### 📊 절대원칙 진행률 (세션 10 종료 — 변동: 골격→실증)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | ADK + OTel span + MCP 서버 계측 + PoseExtractor Stage2 span |
+| P2 Encourager ↔ Scrutinizer | **100%** | 실영상 데이터로 토론 실증 |
+| P3 사용자 피드백 → 페르소나 | **50%** | Day 13 feedback handler 로 70% |
+| P4 Mediator + Phoenix MCP | **100%** | 실영상 파이프라인에서 MCP 자동 호출 확인 |
+| P5 의료 면책 | **45%** | Mediator + PoseExtractor disclaimer. UI 전체 표시 Day 14 |
+
+> 🚨 **6/5 마일스톤(End-to-end skeleton) 사전 달성** — 이제 "골격"이 아니라 **실제 영상으로 완전 동작**.
+> 다음: ① 잘못된 자세 영상으로 safety_flags 검증 ② Day 13 LLM-as-a-Judge(P3 70%) ③ latency 최적화.
+
+---
+
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
@@ -635,18 +681,16 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 - 영상 도착했는지 확인: `ls "data/sample_videos/"`
 - 가능하면 `.env` 에 `VECTOR_SEARCH_*` 3개 변수 추가됐는지 한 번 더 확인
 
-### 1. 영상 작업 — Day 5 완료 ✅, 다음은 완전 e2e
-> ✅ 전신 측면 영상 도착·검증(미검출 0%) + Stage1 정확도 묶음(rep 3개) + Stage2(Gemini 멀티모달) = **Task 5.1 완료** (세션 9).
-1. **Task 4.1 Phase 2 — 완전 e2e** ← **다음 1순위**:
-   영상 1개 → `pose_extractor.run_pose_extractor()` 결과를 pose_data 로 `run_full_session()` 에 흘림
-   (토론→합의→Mediator→Firestore). orchestrator 에 PoseExtractor prepend.
-   - 입력 변환 주의: `run_pose_extractor()` 출력(safety_flags/reps/camera_angle 포함)을 encourager/scrutinizer 가 받는 pose_data 형태로 그대로 전달 가능(스키마 호환).
-   - latency 재조정: PoseExtractor ~27s(Stage1 10s + Stage2 Gemini 17s) + 토론 ~30s + Mediator → 60s 목표 점검.
-2. **잘못된 자세 영상으로 safety_flags 검증** (Task 5.1 후반, TASKS.md Steps): 결함 의도 영상 → safety_flags 정확 검출 확인 → 안 잡히면 prompt 보강.
-3. 실행 명령:
+### 1. 영상 작업 — Task 5.1 ✅(세션 9) + Task 4.1 Phase 2 완전 e2e ✅(세션 10)
+> ✅ `run_full_e2e()` 로 실영상 → PoseExtractor → 토론 → 합의 → Firestore 전체 동작 (acceptance 8/8).
+1. **잘못된 자세 영상으로 safety_flags 검증** ← **다음 1순위** (Task 5.1 후반, TASKS.md Steps):
+   결함 의도 영상(명백한 전방 기울기/얕은 깊이/무릎 외반 등) → safety_flags 정확 검출 확인 → 안 잡히면 prompt 보강.
+   현 squat_demo 는 정상에 가까워 safety_flag 1개만 검출 → **명백한 결함 영상으로 검출력 확인 필요**.
+2. 실행 명령:
    ```
-   ./venv/Scripts/python.exe agents/pose_extractor.py data/sample_videos/squat_demo.mp4 squat
-   ./venv/Scripts/python.exe agents/pose_extractor.py --selftest   # e2e acceptance 8/8
+   ./venv/Scripts/python.exe agents/orchestrator.py --e2e                              # 완전 e2e (기본 squat_demo)
+   ./venv/Scripts/python.exe agents/orchestrator.py --e2e data/sample_videos/<영상>.mp4  # 다른 영상
+   ./venv/Scripts/python.exe agents/pose_extractor.py data/sample_videos/squat_demo.mp4 squat  # PoseExtractor 단독
    ```
 
 ### 2. 영상 없이도 가능 (P4 100% 완료 → 다음 우선순위)
@@ -675,6 +719,8 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 - **e2e 테스트 누적**: `orchestrator.py --full` 실행마다 `e2e_demo_*` Firestore debate 누적 (cleanup 없음) — CI 도입 시 정리.
 - ✅ **pose_mediapipe.py 정확도 묶음** (Task #8) — **세션 9 해소** (`eec574f`). fps 비례 window + prominence 병합 + visibility 가중. rep 3개 정확, tempo 현실화.
 - **pose_extractor.py 속도**: Stage1 ~10s + Stage2 Gemini 멀티모달 ~16-18s ≈ 27s. Task 5.1 acceptance(10s)엔 미달(Gemini Flash 변동). 데모 영상 10-20s면 수용. 조정 추후.
+- **완전 e2e latency 113s** (세션 10): pose 29.3s + 토론 + mediator 44.5s. 목표 60s 초과. 최적화 후보 — MCP subprocess 재사용(매 호출 cold start), 토론·pose 병렬화, Mediator를 Flash 전환. Day 14 데모 전 점검.
+- **MCP 첫 호출 cold start**: stdio subprocess 첫 query 가 5s ClientRequest timeout(graceful handling 으로 결과는 정상). subprocess 워밍업 또는 timeout 상향으로 완화 가능 — Day 14.
 - **pose_extractor.py form_score 재현성**: temp 0.15 에도 ±10 변동. 데모는 1회 결과 사용. 더 낮추거나 루브릭 강화 가능.
 - **pose_extractor selftest stdout**: phoenix register 박스가 stdout 오염 → JSON 프로그래밍 파싱 시 주의(acceptance 는 stderr 라 무관). 사소.
 - **requirements google-genai 버전 고정**: `types.Part.from_bytes` 버전 의존 — Day 14 배포 시 고정.
@@ -703,10 +749,10 @@ P1 100% · P2 100% · P3 50% · **P4 100%** · P5 40%
 | Phase | Day | 핵심 목표 | 상태 |
 |---|---|---|---|
 | Foundation | 1-2 (5/28-29) | 환경 셋업, 자동 계측 hello world, MediaPipe 스모크 | 🟢 **Day 1 ✅** (1.6 전신영상 통과, 미검출 0%) · Day 2 거의 완료 (2.2 deploy 만 Day14) |
-| Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 선완료, 4.2 단위 테스트만 남음 |
+| Skeleton | 3-4 (5/30-31) | 두 에이전트 + Pose Extractor 기본 | 🟢 Task 3.2·3.3·4.1 ✅ · **4.1 Phase 2 완전 e2e ✅ (run_full_e2e)** · 4.2 단위 테스트만 남음 |
 | Multi-modal Core | 5-7 (6/1-3) | 2-stage PoseExtractor 완성 | 🟢 **Task 5.1 ✅** (Stage1 정확도묶음 + Stage2 Gemini 멀티모달, e2e 8/8). 잘못된자세 safety 검증 남음 |
-| Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 e2e 골격 ✅ (run_full_session)** |
-| **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **골격 달성** (sample로 토론→합의→저장). 영상 합류 시 PoseExtractor만 추가하면 완전 e2e |
+| Adversarial Debate | 8-9 (6/4-5) | 토론 로직 + Mediator | 🟢 8.x ✅ · 9.1 Mediator ✅ · **9.2 완전 e2e ✅ (실영상 run_full_e2e)** |
+| **🚨 마일스톤** | **9 종료 (6/5)** | **End-to-end skeleton 마감일** | 🟢 **완전 달성 (사전)** — 실영상 → PoseExtractor → 토론 → 합의 → 저장, acceptance 8/8 |
 | Memory | 10-11 (6/6-7) | Firestore + Vector Search | ⏭️ |
 | Introspection | 12 (6/8) | Phoenix MCP 커스텀 wrapper | 🟢 **12.1·12.2 ✅ (P4 100%)** · Phoenix REST + trace_id 루프 완성 · 12.3 배포준비만 남음 |
 | Self-Improvement | 13 (6/9) | LLM-as-a-Judge + 양방향 학습 | ⏭️ |

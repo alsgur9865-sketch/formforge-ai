@@ -291,6 +291,43 @@ class FullSessionResult:
         }
 
 
+class PoseExtractionError(Exception):
+    """
+    PoseExtractor 가 신뢰도 가드/실패로 error dict 를 반환했을 때 던지는 예외.
+
+    토론 단계로 쓰레기 입력(rep 0개 / 무릎 신뢰도 낮음 / Gemini 실패)을
+    넘기지 않기 위한 방어. caller(CLI·UI)가 `.payload` 로 error_code·message 표시.
+    """
+
+    def __init__(self, error_payload: dict[str, Any]):
+        self.payload = error_payload
+        super().__init__(
+            f"{error_payload.get('error_code')}: {error_payload.get('message')}"
+        )
+
+
+@dataclass
+class E2EResult:
+    """
+    완전 end-to-end 결과 — PoseExtractor(영상 멀티모달 해석) + 토론/합의 세션.
+
+    차별화 #4 (Multi-modal × Multi-agent) 의 실증: 한 영상이 PoseExtractor 에서
+    pose_data 로 변환되고, 그 결과를 두 코치가 서로 다른 관점으로 토론한다.
+    """
+    pose_extraction: dict[str, Any]      # run_pose_extractor 출력 (= 토론 입력 pose_data)
+    session: "FullSessionResult"          # 토론 → 합의 → Firestore
+    pose_latency_seconds: float
+    total_latency_seconds: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "pose_extraction": self.pose_extraction,
+            "session": self.session.as_dict(),
+            "pose_latency_seconds": self.pose_latency_seconds,
+            "total_latency_seconds": self.total_latency_seconds,
+        }
+
+
 _PHOENIX_REGISTERED = False
 
 
@@ -434,6 +471,79 @@ async def run_full_session(
     )
 
 
+async def run_full_e2e(
+    video_uri: str,
+    user_context: dict[str, Any],
+    *,
+    exercise_type: str = "squat",
+    persona_state: dict[str, Any] | None = None,
+    user_id: str | None = None,
+    max_rounds: int | None = None,
+    debate_id: str | None = None,
+    use_mcp: bool = True,
+) -> E2EResult:
+    """
+    완전 end-to-end: 영상 → PoseExtractor(2-stage) → 토론 → 합의(Mediator+MCP) → Firestore.
+
+    run_full_session 앞에 PoseExtractor 를 prepend 한 형태. sample pose_data 대신
+    실제 영상에서 추출한 pose_data 를 토론에 흘린다 (Task 4.1 Phase 2).
+
+    Args:
+        video_uri: 로컬 경로 또는 gs:// URI.
+        user_context: { user_id, injury_history, experience_level, persona_state? }
+                      PoseExtractor(injury 기반 severity 상향)와 토론 양쪽에 동일 전달.
+        exercise_type: "squat" 등. PoseExtractor + Firestore 저장에 사용.
+        debate_id: 제공 시 Firestore 에 pose_data/라운드/합의 저장 (fail-soft).
+        use_mcp: Mediator 의 Phoenix MCP introspection 자동 호출 (P4).
+
+    Returns:
+        E2EResult — pose_extraction(영상 해석) + FullSessionResult(토론/합의).
+
+    Raises:
+        PoseExtractionError: PoseExtractor 가 신뢰도 가드/실패로 error dict 반환 시.
+                             이 경우 토론 단계로 진입하지 않는다 (쓰레기 입력 차단).
+    """
+    # lazy import — cv2/mediapipe 가 무거우므로 test_orchestrator(run_round1) 가
+    # 이 체인을 로드하지 않도록 함수 내부에서 import.
+    from agents.pose_extractor import run_pose_extractor
+
+    total_start = time.monotonic()
+
+    # 1) PoseExtractor — blocking(cv2 + mediapipe + gemini) 이므로 to_thread 로
+    #    이벤트 루프를 막지 않게 별도 스레드에서 실행.
+    pose_start = time.monotonic()
+    pose_result = await asyncio.to_thread(
+        run_pose_extractor, video_uri, exercise_type, user_context
+    )
+    pose_latency = time.monotonic() - pose_start
+
+    # 2) 신뢰도 가드 — error dict 면 토론 진입 안 함 (P5: 거짓 분석 방지).
+    if pose_result.get("error"):
+        raise PoseExtractionError(pose_result)
+
+    # 3) 추출된 pose_data 를 그대로 토론 세션에 전달 (스키마 호환 — ARCHITECTURE §2.1).
+    #    PoseExtractor 출력은 sample_pose_data 와 동일 구조 + camera_angle/reasoning 추가.
+    session = await run_full_session(
+        pose_data=pose_result,
+        user_context=user_context,
+        persona_state=persona_state,
+        user_id=user_id,
+        max_rounds=max_rounds,
+        debate_id=debate_id,
+        video_uri=video_uri,
+        exercise_type=pose_result.get("exercise_type", exercise_type),
+        use_mcp=use_mcp,
+    )
+
+    total_latency = time.monotonic() - total_start
+    return E2EResult(
+        pose_extraction=pose_result,
+        session=session,
+        pose_latency_seconds=pose_latency,
+        total_latency_seconds=total_latency,
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI 데모 (옵션)
 # ---------------------------------------------------------------------------
@@ -463,7 +573,89 @@ if __name__ == "__main__":
         "experience_level": "intermediate",
     }
 
-    # ---- e2e 전체 세션: 토론 → 합의(MCP) → Firestore (Day 9 통합) ----
+    # ---- 완전 e2e: 영상 → PoseExtractor → 토론 → 합의 → Firestore (Task 4.1 Phase 2) ----
+    if "--e2e" in sys.argv:
+        # 영상 경로: `--e2e <video>` 위치 인자, 없으면 기본 샘플 영상.
+        video_path: str | None = None
+        for i, a in enumerate(sys.argv):
+            if a == "--e2e" and i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-"):
+                video_path = sys.argv[i + 1]
+                break
+        if not video_path:
+            video_path = str(
+                Path(__file__).resolve().parent.parent
+                / "data" / "sample_videos" / "squat_demo.mp4"
+            )
+        if not Path(video_path).exists():
+            print(f"❌ 영상 없음: {video_path}", file=sys.stderr)
+            sys.exit(1)
+
+        debate_id = f"e2e_video_{int(time.time())}"
+        try:
+            e2e = asyncio.run(
+                run_full_e2e(
+                    video_uri=video_path,
+                    user_context=user_ctx,
+                    exercise_type="squat",
+                    debate_id=debate_id,
+                    use_mcp=True,
+                )
+            )
+        except PoseExtractionError as pe:
+            print(f"\n❌ PoseExtractor 신뢰도 가드 — 토론 미진입: {pe}", file=sys.stderr)
+            print(json.dumps(pe.payload, ensure_ascii=False, indent=2))
+            raise SystemExit(1)
+
+        fs = e2e.session
+        pose = e2e.pose_extraction
+        print(
+            f"\n⏱  Total {e2e.total_latency_seconds:.1f}s "
+            f"(pose {e2e.pose_latency_seconds:.1f}s + session {fs.total_latency_seconds:.1f}s, "
+            f"mediator {fs.mediator_latency_seconds:.1f}s)"
+        )
+        print(
+            f"🎥 PoseExtractor: camera_angle={pose.get('camera_angle')}, "
+            f"rep_count={pose.get('rep_count')}, "
+            f"form_score={pose.get('overall_metrics', {}).get('form_score_0_100')}, "
+            f"safety_flags={len(pose.get('safety_flags', []))}개"
+        )
+        print(
+            f"🔁 라운드 {len(fs.debate.rounds)} / converged={fs.debate.converged} "
+            f"/ shared_issue={fs.debate.shared_issue}"
+        )
+        print(f"🧰 MCP tool calls: {fs.mcp_tool_calls}")
+        print("\n🧑‍⚖️ MEDIATOR 합의:")
+        print(json.dumps(fs.mediator.as_dict(), ensure_ascii=False, indent=2))
+
+        snap = None
+        try:
+            from storage import firestore_client
+
+            snap = firestore_client.get_debate_snapshot(debate_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"(Firestore 확인 실패: {type(e).__name__}: {e})")
+
+        checks = {
+            "PoseExtractor rep ≥1": pose.get("rep_count", 0) >= 1,
+            "PoseExtractor camera_angle 판단": pose.get("camera_angle")
+            in ("side", "front", "angled", "unknown"),
+            "토론 라운드 ≥1": len(fs.debate.rounds) >= 1,
+            "Mediator consensus 생성": bool(fs.mediator.consensus.strip()),
+            "MCP tool 자동 호출": len(fs.mcp_tool_calls) >= 1,
+            "P5 의료 면책": "의학 조언" in fs.mediator.disclaimer,
+            "Firestore pose_data 저장": bool(snap and snap.get("pose_data")),
+            "Firestore consensus 저장": bool(snap and snap.get("consensus")),
+        }
+        print(f"\n=== 완전 e2e acceptance (debate_id={debate_id}) ===")
+        for name, ok in checks.items():
+            print(f"  {'✅' if ok else '❌'} {name}")
+        all_ok = all(checks.values())
+        print(
+            f"\n{'✅ 완전 e2e 통과 (영상 → PoseExtractor → 토론 → 합의 → 저장)' if all_ok else '❌ 미충족 항목 있음'}"
+        )
+        raise SystemExit(0 if all_ok else 1)
+
+    # ---- e2e 전체 세션: 토론 → 합의(MCP) → Firestore (Day 9 통합, sample pose_data) ----
     if "--full" in sys.argv:
         debate_id = f"e2e_demo_{int(time.time())}"
         fs = asyncio.run(
