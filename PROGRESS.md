@@ -2,9 +2,9 @@
 
 > 세션 간 핸드오프 문서. 다음 세션 시작 시 이 파일부터 읽기.
 
-**최종 갱신**: 2026-05-30 (세션 11 — **Day 13 Self-Improvement Loop**(LLM-as-a-Judge + 양방향 페르소나, P3 70%) + **Day 12.3 MCP Cloud Run 배포 준비** + Second Eye 리뷰 4건 수정. 차별화 #5 실증)
-**현재 단계**: Day 1~5 ✅ · Day 8·9 ✅ · **Day 12 ✅**(12.1·12.2 P4 100% + **12.3 배포준비**) · **Day 13 ✅**(13.1·13.2 P3 70%) · 남은 핵심: Day 14 UI·배포
-**저장소 상태**: `341363a`·`1b2d5c0`·`bbc3445` 3커밋 push 대기 + 세션 11 변경 커밋 예정 → 총 4커밋. push 는 사용자 직접(main 직접 push 차단).
+**최종 갱신**: 2026-05-30 (세션 12 — **Day 14 UI 6화면 구현(Fight Card Streamlit)** + 글로벌 git 워크플로 정책 1줄. P5 45%→**100%**)
+**현재 단계**: Day 1~5·8·9·12·13 ✅ · **Day 14 UI 구현 ✅**(6화면 Streamlit, AppTest 전 화면 clean) → 다음: **Live e2e 점검 + Cloud Run 듀얼 배포**
+**저장소 상태**: `ui/`(8 신규)+`ui/design_reference/`+`docs/DESIGN_BRIEF.md`+`PROGRESS.md` 커밋 대상. push 시 승인 1회(settings `ask`, deny 아님). **trunk-based 정책 첫 적용**(검증된 변경 main 직접).
 
 ---
 
@@ -728,16 +728,99 @@ squat_demo.mp4
 
 > 차별화 #5 (Self-improvement loop) **실증** — too_harsh 피드백 → harshness 0.5→0.35 영구 반영 → 다음 토론 톤 변화. Arize 평가(`debate_quality_score`) Phoenix 송출.
 
+### Day 14 준비 — UI 디자인 확정 (Fight Card 🥊) ⭐ 새 세션 시작점
+> 세션 11 후반, claude.ai/design 으로 UI 6화면 완성. **격투기 "Fight Card" 메타포로 확정**(복싱 대전 = adversarial 두 코치 토론과 완벽 매칭).
+
+**산출물 (미커밋)**:
+- `docs/DESIGN_BRIEF.md` — 프로젝트 정보 → 디자인 도구 입력용 브리프(Claude 작성).
+- `ui/design_reference/` — claude.ai/design 핸드오프 **hi-fi 6화면 HTML** + `README.md`(디자인 토큰/스펙 전체) + `Concepts.html`(갤러리).
+
+**6화면 (product flow)**:
+| # | 화면 | 파일 | 메타포 → 우리 기능 |
+|---|---|---|---|
+| 1 | Weigh-In | upload-fightcard.html | 계체량 = 영상 업로드 + 운동선택 + 부상이력 |
+| 2 | ⭐ Live Debate (히어로) | debate-fightcard.html | 두 코너 라운드별 토론 + Tale of the Tape + Referee's Decision |
+| 3 | Official Decision | consensus-fightcard.html | Referee's Decision = Mediator 합의(전체 문서) |
+| 4 | Score the Corners | feedback-fightcard.html | 관객 채점 = 피드백 → 페르소나 조정(인터랙티브) |
+| 5 | Between Bouts | evolution-fightcard.html | Wk1 vs Wk2 = self-improvement(harshness 0.50→0.35) |
+| 6 | Official Timesheet | trace-fightcard.html | 공식 기록부 = Phoenix trace(Gantt + MCP 하이라이트) |
+
+**디자인 토큰**(`ui/design_reference/README.md` 에 전체): dark `#111219` + Encourager green `#37B36A` vs Scrutinizer red `#E8415C` + Mediator/official gold `#C9A24B` + ember CTA `#E2672E`. 폰트 Saira Condensed(헤드/이름)·Archivo(본문)·JetBrains Mono(라벨/데이터). **모든 분석 화면 푸터에 P5 면책 필수**.
+
+**구현 전략 (확정)**: 1440px 고정폭 + 정교한 grid → **Streamlit 네이티브 위젯으론 재현 불가**.
+→ **HTML 템플릿 그대로 + 실제 데이터 주입 → `st.components.v1.html()` 렌더 + 1초 폴링(streamlit-autorefresh)**. 인터랙션(업로드/피드백 제출)만 Streamlit 위젯으로 분리(하이브리드).
+→ 핸드오프 state 스키마가 우리 출력과 **정확히 매핑**: `encourager{praise,concern,tip,addressesScrutinizer}` / `scrutinizer{primaryRisk{name,severity,mechanism,evidence},requiredAction}` / `mediator{consensus,priorityActions,pastDebateReferences}`.
+
+---
+
+## 🗓️ 세션 12 (2026-05-30) — Day 14 UI 구현 (Fight Card 6화면) ⭐ P5 45%→100%
+
+> 디자인 핸드오프(`ui/design_reference/`) → Streamlit "Fight Card" UI 6화면 구현. 차별화 5가지를 전부 화면화.
+
+### Claude Code 완료 (세션 11 확정 전략: HTML 템플릿 + 데이터 주입 + 격리 iframe + 1초 폴링)
+- `ui/theme.py` — 디자인 토큰(색/폰트) + Google Fonts + forge 마크 SVG + P5 면책 + Streamlit 페이지 셸 CSS.
+- `ui/templates/*.html` (6) — upload·debate·consensus·feedback·evolution·trace. 디자인 충실 재현 Jinja 템플릿. **폴링 깜빡임 방지로 reveal 애니메이션 제거**(최종 resting 상태 = 핸드오프 `?still=1`).
+- `ui/render.py` — 백엔드 dict(pose/debate/mediator/persona/trace) → 템플릿 컨텍스트 **매퍼 6종**. 데모·라이브 **동일 매퍼** 통과. 매핑이 실제 출력과 1:1 (EncouragerOutput{praise,concern_one,actionable_tip,addresses_scrutinizer} / ScrutinizerOutput{primary_risk{name,severity,mechanism},required_action} / MediatorOutput{consensus,priority_actions,past_debate_references} / persona_state{scrutinizer.harshness}).
+- `ui/sample_state.py` — **파이프라인 출력과 동일 shape** 데모 데이터(측면 스쿼트/전방 기울기/요추 부상 스토리 = 디자인 카피와 일치). GCP 없이 6화면 즉시 렌더.
+- `ui/streamlit_app.py` — 멀티페이지 네비 + Demo/Live 토글 + 1초 폴링(autorefresh) + 업로드/피드백 위젯(하이브리드). Live = `run_full_e2e` + Firestore 폴링 + `process_feedback_sync` (전부 fail-soft → 실패 시 Demo 폴백).
+
+### 핵심 결정 + 발견
+| # | 항목 | 처리 |
+|---|---|---|
+| 1 | 🔴 `st.components.v1.html` **2026-06-01 제거 예정**(마감 6/12 전!) | 전체 HTML → base64 `data:` URI → **`st.iframe`**(공식 `data:` 지원 확인). CSS 완전 격리 + 미래 안전. 구버전 `components.html` 폴백 유지. |
+| 2 | 인터랙션(업로드/피드백) iframe↔Streamlit 통신 한계 | **하이브리드** — 디자인 비주얼은 현재 선택 반영(읽기 전용), 실제 입력은 Streamlit 위젯. |
+| 3 | feedback 어휘 불일치 | UI(warm/ok/cold · harsh/ok/soft) → handler(too_warm/perfect/too_cold · too_harsh/perfect/too_soft) 매핑 + before/after 페르소나 캡처(Evolution 연결). |
+
+### 검증
+- 6화면 전부 Jinja 렌더 성공 + **P5 면책 전 화면 푸터 포함** + sent/pending 변형 OK.
+- `py_compile` 통과 + Streamlit 헤드리스 부팅 성공.
+- **AppTest: 6화면 전환 + Live 토글 전부 예외 없이 실행** (st.iframe 전환으로 비권장 경고도 제거).
+
+### 글로벌 정책 (사용자 승인)
+- 글로벌 `~/.claude/CLAUDE.md` `Workflow Defaults` 에 **Git 워크플로 1줄** 추가: 기본 trunk-based(로컬 검증된 변경 main 직접 commit+push), 위험·미검증만 브랜치. force-push·reset --hard 류는 settings.json deny 유지.
+
+### 📊 절대원칙 진행률 (세션 12 종료)
+| 원칙 | 진행률 | 비고 |
+|---|---|---|
+| P1 Phoenix 자동 계측 | **100%** | Trace 화면으로 시각화 |
+| P2 Encourager ↔ Scrutinizer | **100%** | Live Debate 라운드별 토론 화면 |
+| P3 사용자 피드백 → 페르소나 | **70%** | Between Bouts(Evolution) 화면으로 before/after 시각화 |
+| P4 Mediator + Phoenix MCP | **100%** | Trace 화면 MCP child span 하이라이트 |
+| P5 의료 면책 | **100%** ✅ | **6화면 푸터 전부 의료 면책 표시 — UI 전체표시 완료** |
+
+### 세션 12 미처리 부채 (다음 세션)
+- **#5 중복 Phoenix register**(orchestrator/feedback_handler 별개 플래그) → 공통 모듈 통합.
+- **#7 asyncio.run**: 현재 Streamlit 스크립트 스레드라 동작하나, 폴링 중첩 시 점검 필요 → `nest_asyncio` 검토.
+- **C#4 get_signed_url**: 라이브 영상 미리보기 붙일 때.
+- **Evolution 라이브 연결**: 현재 caution←scrutinizer.detail 프록시. 실제 스냅샷 2주치 누적 시 정교화.
+- **Live e2e UI 점검**: 실제 영상 업로드 → 113s 파이프라인 → 화면 표시 흐름 미검증(데모는 완전 동작).
+
 ---
 
 ## ⏭️ 다음 세션 시작 시 할 일
 
 ### 0. 매번 먼저
 - **이 파일 먼저 읽기**
-- 영상 도착했는지 확인: `ls "data/sample_videos/"`
-- 가능하면 `.env` 에 `VECTOR_SEARCH_*` 3개 변수 추가됐는지 한 번 더 확인
+- 디자인 레퍼런스 확인: `ls ui/design_reference/screens/` + `ui/design_reference/README.md`(토큰)
+- 영상 확인: `ls "data/sample_videos/"` (squat_demo.mp4 있음)
 
-### 1. 영상 작업 — Task 5.1 ✅(세션 9) + Task 4.1 Phase 2 완전 e2e ✅(세션 10)
+### ⭐⭐ 1순위: Day 14 UI 구현 (Fight Card) — 새 세션 시작점
+> 디자인 확정됨(위 "Day 14 준비 — UI 디자인 확정" 참조). `ui/design_reference/` 6화면 + 토큰 + 구현 전략(HTML 템플릿 + 데이터 주입 + 1초 폴링).
+
+**구현 순서 (추천)**:
+1. **공유 인프라**: `ui/theme.py`(디자인 토큰 CSS + Google Fonts 로드) + `ui/render.py`(HTML 템플릿 Jinja 렌더 헬퍼) + `ui/templates/`(6 HTML 을 데이터 플레이스홀더로 변환).
+2. **히어로부터**: `debate-fightcard.html`(Live Debate)을 실제 debate 데이터(`run_debate`/`run_full_e2e` 출력)로 렌더 → 임팩트 큰 화면 먼저.
+3. 이후 Consensus → Evolution → Upload → Feedback → Trace 순.
+4. `ui/streamlit_app.py` 멀티페이지 + 1초 폴링(streamlit-autorefresh) + Firestore 상태(`get_debate_snapshot`) 연결.
+
+**구현 시 함께 처리할 부채(중요)**:
+- **#7 asyncio.run() Streamlit 충돌** ← UI 붙이면 즉시 터짐. `convergence_judge`/`mediator`/`feedback_handler` 의 `*_sync` 래퍼 → UI 는 await 경로 또는 `nest_asyncio`.
+- **#5 중복 Phoenix register** → 공통 모듈로 통합.
+- **C#4 `get_signed_url` Cloud Run ADC 서명** → 영상 표시 시.
+
+**범위는 새 세션에서 사용자와 정함**(히어로 1화면부터 / 6화면 목업부터 / 인프라만). 사용자 의견: 인터뷰 없이 바로 진행 선호 가능 → 디자인 충실 재현(HTML 템플릿) 방향은 확정.
+
+### 2. 영상 잔여 (UI와 병행 가능) — Task 5.1 ✅(세션 9) + Task 4.1 Phase 2 ✅(세션 10)
 > ✅ `run_full_e2e()` 로 실영상 → PoseExtractor → 토론 → 합의 → Firestore 전체 동작 (acceptance 8/8).
 1. **잘못된 자세 영상으로 safety_flags 검증** ← **다음 1순위** (Task 5.1 후반, TASKS.md Steps):
    결함 의도 영상(명백한 전방 기울기/얕은 깊이/무릎 외반 등) → safety_flags 정확 검출 확인 → 안 잡히면 prompt 보강.

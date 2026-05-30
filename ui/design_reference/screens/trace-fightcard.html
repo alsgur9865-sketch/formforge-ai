@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormForge AI — Official Timesheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800;900&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E0F16; --ink2:#141622; --panel:#181B27; --line:#262A38; --line2:#343a4c;
+    --hi:#ECEAE2; --mid:#9298AA; --dim:#5C6276;
+    --enc:#37B36A; --scr:#E8415C; --gold:#C9A24B; --gold2:#E2C57A; --ember:#E2672E; --slate:#6E7486;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{width:1440px; height:900px; overflow:hidden; position:relative;}
+  body{background:var(--ink); color:var(--hi); font-family:'JetBrains Mono','ui-monospace',monospace; -webkit-font-smoothing:antialiased;}
+  .stage{height:100%; display:flex; flex-direction:column;}
+
+  .strip{display:flex; align-items:center; justify-content:space-between; padding:13px 40px; background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px), var(--ink2);
+    border-bottom:3px solid var(--hi);}
+  .strip .l{display:flex; align-items:center; gap:11px; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--mid);}
+  .strip .l .mk{width:24px; height:24px; border-radius:6px; display:grid; place-items:center; background:var(--hi);}
+  .strip .c{font-family:'Saira Condensed'; font-weight:800; font-size:18px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); white-space:nowrap;}
+  .strip .r{font-size:11px; letter-spacing:.14em; color:var(--dim); white-space:nowrap;}
+
+  .wrap{flex:1; padding:24px 40px 0; display:flex; flex-direction:column; min-height:0;}
+
+  /* metrics */
+  .metrics{display:grid; grid-template-columns:repeat(4,1fr) 1.3fr; gap:13px; margin-bottom:22px;}
+  .met{padding:14px 16px; border:1px solid var(--line); border-radius:5px; background:var(--ink2);}
+  .met .ml{font-size:10px; letter-spacing:.13em; color:var(--dim); text-transform:uppercase;}
+  .met .mv{font-family:'Saira Condensed'; font-weight:800; font-size:34px; line-height:.95; margin-top:7px;}
+  .met .mv .u{font-family:'JetBrains Mono'; font-size:14px; font-weight:500; color:var(--mid); margin-left:3px;}
+  .met.ok{border-left:3px solid var(--enc);} .met.mcp{border-left:3px solid var(--gold);}
+  .met .mv .ic{color:var(--gold);}
+  .met.mcp .ml{color:var(--gold);}
+  .met .ms{font-size:10px; color:var(--mid); margin-top:5px; letter-spacing:.02em;}
+
+  /* gantt */
+  .gh{display:flex; align-items:center; gap:10px; font-family:'Saira Condensed'; font-weight:800; font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:var(--mid); margin-bottom:13px;}
+  .gh::after{content:""; flex:1; height:1px; background:var(--line);}
+  .gh .lg{display:flex; gap:14px; font-family:'JetBrains Mono'; font-size:10px; font-weight:400; letter-spacing:.04em; color:var(--dim); text-transform:none;}
+  .gh .lg span{white-space:nowrap;}
+  .gh .lg i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:middle;}
+
+  .gantt{flex:1; min-height:0;}
+  .axis{display:grid; grid-template-columns:248px 1fr; align-items:end; margin-bottom:8px;}
+  .axis .ticks{position:relative; height:16px; border-bottom:1px solid var(--line2);}
+  .axis .tk{position:absolute; bottom:0; transform:translateX(-50%); font-size:9.5px; color:var(--dim);}
+  .axis .tk::after{content:""; position:absolute; bottom:-1px; left:50%; width:1px; height:5px; background:var(--line2);}
+
+  .grp{font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase; padding:9px 0 4px 4px;}
+  .span{display:grid; grid-template-columns:248px 1fr; align-items:center; height:31px;}
+  .sname{display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--hi); white-space:nowrap; overflow:hidden;}
+  .sname .pad{width:14px; flex:none;}
+  .sname .dot{width:8px; height:8px; border-radius:2px; flex:none;}
+  .sname .sub{color:var(--dim); font-size:10.5px;}
+  .track{position:relative; height:100%; display:flex; align-items:center;
+    background-image:repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 11.764%); background-position:0 0;}
+  .bar{position:absolute; height:15px; border-radius:3px; display:flex; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,.4);}
+  .bar .blab{position:absolute; left:calc(100% + 9px); white-space:nowrap; font-size:10.5px; color:var(--mid);}
+  .bar .blab b{color:var(--hi); font-weight:500;}
+  .bar.mcp{border:1px solid var(--gold2); box-shadow:0 0 12px rgba(201,162,75,.45); height:13px;}
+  .bar.mcp .tagm{position:absolute; right:calc(100% + 8px); white-space:nowrap; font-size:9.5px; color:var(--gold2); letter-spacing:.06em;}
+
+  .bar.wide .blab{left:auto; right:12px; color:#fff;}
+  .bar.wide .blab b{color:#fff;}
+  .callout{margin-top:auto; display:flex; align-items:center; gap:13px; padding:12px 16px; border-radius:5px; border:1px solid rgba(201,162,75,.4); background:linear-gradient(90deg, rgba(201,162,75,.1), transparent);}
+  .callout .b{width:30px; height:30px; border-radius:50%; background:rgba(201,162,75,.16); border:1px solid var(--gold); display:grid; place-items:center; flex:none; color:var(--gold2);}
+  .callout .t{font-size:12px; color:var(--mid); line-height:1.45;}
+  .callout .t b{color:var(--gold2); font-weight:500;}
+
+  footer{padding:10px 40px 12px; font-size:10.5px; letter-spacing:.04em; color:var(--dim); display:flex; gap:9px; align-items:center; border-top:1px solid var(--line); background:var(--ink2); margin-top:14px;}
+  footer .sep{color:var(--line2);}
+  .backlink{position:absolute; bottom:10px; right:22px; z-index:9; display:inline-flex; align-items:center; gap:7px; height:27px; padding:0 12px; border-radius:3px; background:#141622; border:1px solid #343a4c; color:#9298AA; font-size:10.5px; letter-spacing:.06em; text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <div class="strip">
+    <div class="l"><span class="mk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 14l6-2 2-6 3 9 2-3 5 2" stroke="#0E0F16" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>FormForge AI · Observability</div>
+    <div class="c">◷ Official Timesheet</div>
+    <div class="r">PHOENIX TRACE · RECORD №048</div>
+  </div>
+
+  <div class="wrap">
+    <div class="metrics">
+      <div class="met ok"><div class="ml">Total latency</div><div class="mv">8.4<span class="u">s</span></div><div class="ms">whole bout, end to end</div></div>
+      <div class="met"><div class="ml">Spans</div><div class="mv">10</div><div class="ms">auto-instrumented</div></div>
+      <div class="met"><div class="ml">Tokens</div><div class="mv">11.9<span class="u">k</span></div><div class="ms">across 5 LLM calls</div></div>
+      <div class="met"><div class="ml">p50 latency</div><div class="mv">1.2<span class="u">s</span></div><div class="ms">per agent turn</div></div>
+      <div class="met mcp"><div class="ml">⟲ MCP introspection</div><div class="mv">2 <span class="u">calls · 0.5s</span></div><div class="ms">the coach queried its own history</div></div>
+    </div>
+
+    <div class="gh">Trace · agent execution
+      <span class="lg"><span><i style="background:var(--slate)"></i>analysis</span><span><i style="background:var(--enc)"></i>encourager</span><span><i style="background:var(--scr)"></i>scrutinizer</span><span><i style="background:var(--gold)"></i>judge / mediator</span><span><i style="background:var(--gold2);box-shadow:0 0 6px var(--gold)"></i>MCP</span></span>
+    </div>
+
+    <div class="gantt">
+      <div class="axis">
+        <div></div>
+        <div class="ticks">
+          <span class="tk" style="left:0%">0s</span><span class="tk" style="left:11.8%">1s</span><span class="tk" style="left:23.5%">2s</span><span class="tk" style="left:35.3%">3s</span><span class="tk" style="left:47.1%">4s</span><span class="tk" style="left:58.8%">5s</span><span class="tk" style="left:70.6%">6s</span><span class="tk" style="left:82.4%">7s</span><span class="tk" style="left:94.1%">8s</span>
+        </div>
+      </div>
+
+      <div class="span">
+        <div class="sname"><span class="dot" style="background:var(--slate)"></span>PoseExtractor <span class="sub">· vision</span></div>
+        <div class="track"><div class="bar" style="left:0%; width:24.7%; background:var(--slate)"><span class="blab"><b>2.1s</b> · 3 reps · form 65</span></div></div>
+      </div>
+
+      <div class="grp">▸ Round 1 · opening reads (parallel)</div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="dot" style="background:var(--enc)"></span>The Encourager <span class="sub">· r1</span></div>
+        <div class="track"><div class="bar" style="left:24.7%; width:16.5%; background:var(--enc)"><span class="blab"><b>1.4s</b> · 1.8k tok</span></div></div>
+      </div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="dot" style="background:var(--scr)"></span>The Scrutinizer <span class="sub">· r1</span></div>
+        <div class="track"><div class="bar" style="left:24.7%; width:18.8%; background:var(--scr)"><span class="blab"><b>1.6s</b> · 2.1k tok</span></div></div>
+      </div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="dot" style="background:var(--gold)"></span>Convergence Judge</div>
+        <div class="track"><div class="bar" style="left:43.5%; width:3.5%; background:var(--gold)"><span class="blab">0.3s · <b>not yet → R2</b></span></div></div>
+      </div>
+
+      <div class="grp">▸ Round 2 · counters (parallel)</div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="dot" style="background:var(--enc)"></span>The Encourager <span class="sub">· r2</span></div>
+        <div class="track"><div class="bar" style="left:47.1%; width:11.8%; background:var(--enc)"><span class="blab"><b>1.0s</b> · 1.5k tok</span></div></div>
+      </div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="dot" style="background:var(--scr)"></span>The Scrutinizer <span class="sub">· r2</span></div>
+        <div class="track"><div class="bar" style="left:47.1%; width:14.1%; background:var(--scr)"><span class="blab"><b>1.2s</b> · 1.7k tok</span></div></div>
+      </div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="dot" style="background:var(--gold)"></span>Convergence Judge</div>
+        <div class="track"><div class="bar" style="left:61.2%; width:3.5%; background:var(--gold)"><span class="blab">0.3s · <b>converged ✓</b></span></div></div>
+      </div>
+
+      <div class="grp">▸ Ruling</div>
+      <div class="span">
+        <div class="sname"><span class="dot" style="background:var(--ember)"></span>The Mediator <span class="sub">· head coach</span></div>
+        <div class="track"><div class="bar wide" style="left:64.7%; width:34.1%; background:var(--ember)"><span class="blab"><b>2.9s</b> · 2.4k tok</span></div></div>
+      </div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="pad"></span><span class="dot" style="background:var(--gold2)"></span>⟲ query_past_debates</div>
+        <div class="track"><div class="bar mcp" style="left:68.2%; width:3.5%; background:rgba(201,162,75,.5)"><span class="tagm">MCP</span><span class="blab"><b>128ms</b> · recalled №041</span></div></div>
+      </div>
+      <div class="span">
+        <div class="sname"><span class="pad"></span><span class="pad"></span><span class="dot" style="background:var(--gold2)"></span>⟲ query_safety_flags</div>
+        <div class="track"><div class="bar mcp" style="left:71.8%; width:3%; background:rgba(201,162,75,.5)"><span class="tagm">MCP</span><span class="blab"><b>96ms</b> · 2 matches</span></div></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="b">⟲</div>
+      <div class="t"><b>This is the proof of "self-aware".</b> Mid-ruling, the Mediator called two MCP tools to query the athlete's own debate history — surfacing that the forward-lean flag is a <b>recurring</b> issue. Every span here is auto-instrumented via Phoenix; nothing is mocked.</div>
+    </div>
+  </div>
+
+  <footer>
+    <span>⚕ FOR INFORMATION ONLY — NOT MEDICAL ADVICE.</span><span class="sep">|</span>
+    <span>OBSERVABILITY VIEW · OPENINFERENCE / PHOENIX TRACE · LATENCIES ARE PER-SESSION.</span>
+  </footer>
+</div>
+
+<a href="../FormForge%20Concepts.html" class="backlink">← Concepts</a>
+</body>
+</html>

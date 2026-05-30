@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormForge AI — Debate (Fight Card)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800;900&family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#111219; --ink2:#171922; --panel:#1A1D28; --line:#2A2D3A; --line2:#373B4C;
+    --hi:#ECEAE2; --mid:#9A988C; --dim:#67655B;
+    --enc:#37B36A; --enc-ink:#0C3B22; --enc-soft:#8FE0B0;
+    --scr:#E8415C; --scr-ink:#4A1019; --scr-soft:#F79DAC;
+    --bone:#EAE3D2; --bone2:#D8CFB8; --bone-ink:#2A2519;
+    --gold:#C9A24B;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{width:1440px; height:1180px; overflow:hidden;}
+  body{background:var(--ink); color:var(--hi); font-family:'Archivo',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  .stage{height:100%; padding:0; display:flex; flex-direction:column;}
+  .pad{padding:0 46px;}
+
+  /* ============ POSTER HEADER ============ */
+  .poster{position:relative; padding:22px 46px 20px; border-bottom:3px solid var(--hi);
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px),
+      var(--ink2);}
+  .poster .top{display:flex; align-items:center; justify-content:space-between; padding-right:96px; font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.18em; color:var(--mid); text-transform:uppercase; margin-bottom:14px;}
+  .poster .top .l{display:flex; align-items:center; gap:11px;}
+  .poster .top .mk{width:25px; height:25px; border-radius:6px; display:grid; place-items:center; background:var(--hi);}
+  .poster .top .rec{color:var(--gold);}
+  .matchup{display:flex; align-items:center; justify-content:center; gap:30px;}
+  .matchup .name{font-family:'Saira Condensed'; font-weight:800; font-size:62px; line-height:.82; text-transform:uppercase; letter-spacing:.01em; flex:1;}
+  .matchup .name.l{text-align:right;} .matchup .name.r{text-align:left;}
+  .matchup .name.l b{color:var(--enc-soft);} .matchup .name.r b{color:var(--scr-soft);}
+  .matchup .name span{display:block; font-family:'JetBrains Mono'; font-size:11px; font-weight:500; letter-spacing:.12em; color:var(--dim); margin-top:8px; text-transform:none;}
+  .matchup .vs{font-family:'Saira Condensed'; font-weight:900; font-size:34px; color:var(--ink); width:62px; height:62px; border-radius:50%; background:var(--bone); display:grid; place-items:center; flex:none; border:3px solid var(--hi); box-shadow:0 0 0 4px var(--ink2), 0 0 0 5px var(--line2);}
+  .bout-meta{display:flex; align-items:center; justify-content:center; gap:0; margin-top:16px; font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.14em; color:var(--mid); text-transform:uppercase;}
+  .bout-meta .pipe{margin:0 16px; color:var(--line2);}
+  .bout-meta b{color:var(--hi);}
+  .bout-meta .round{display:inline-flex; align-items:center; gap:9px; color:var(--gold);}
+
+  /* ============ TALE OF THE TAPE ============ */
+  .tape{padding:18px 46px 20px; border-bottom:1px solid var(--line);}
+  .tape-h{text-align:center; font-family:'Saira Condensed'; font-weight:700; font-size:17px; letter-spacing:.34em; color:var(--mid); text-transform:uppercase; margin-bottom:14px;}
+  .tape-h::before,.tape-h::after{content:"—"; color:var(--line2); margin:0 14px;}
+  .trow{display:grid; grid-template-columns:1fr 230px 1fr; align-items:center; padding:8px 0; border-top:1px dotted var(--line);}
+  .trow:first-of-type{border-top:none;}
+  .trow .ev, .trow .sv{font-family:'Saira Condensed'; font-weight:600; font-size:23px; text-transform:uppercase; letter-spacing:.01em;}
+  .trow .ev{text-align:right; color:var(--hi);} .trow .sv{text-align:left; color:var(--hi);}
+  .trow .lab{text-align:center; font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.16em; color:var(--dim); text-transform:uppercase;}
+  .trow .ev.dim, .trow .sv.dim{font-family:'Archivo'; font-weight:500; font-size:15px; text-transform:none; color:var(--mid); letter-spacing:0;}
+
+  /* ============ ROUNDS ============ */
+  .rounds{flex:1; padding:6px 46px 0; min-height:0; display:flex; flex-direction:column;}
+  .round{position:relative; padding-top:26px; margin-top:14px;}
+  .round-tab{position:absolute; top:0; left:50%; transform:translateX(-50%); display:inline-flex; align-items:center; gap:10px;
+    background:var(--ink); padding:0 16px; font-family:'Saira Condensed'; font-weight:800; font-size:19px; letter-spacing:.12em; text-transform:uppercase; color:var(--hi);}
+  .round::before{content:""; position:absolute; top:11px; left:0; right:0; height:2px; background:var(--line2);}
+  .round-tab .bell{color:var(--gold);}
+  .round-tab .cnt{font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.1em; color:var(--dim); font-weight:400;}
+
+  .bout{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--line); border-radius:3px; overflow:hidden;}
+  .corner{padding:17px 20px; position:relative;}
+  .corner.enc{background:linear-gradient(90deg, rgba(55,179,106,.07), transparent); border-right:1px solid var(--line);}
+  .corner.scr{background:linear-gradient(270deg, rgba(232,65,92,.07), transparent);}
+  .corner .ch{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .corner .tab{font-family:'JetBrains Mono'; font-size:10px; font-weight:700; letter-spacing:.14em; padding:3px 9px; border-radius:2px;}
+  .corner.enc .tab{background:#1C8C4E; color:#fff;}
+  .corner.scr .tab{background:var(--scr); color:#fff;}
+  .corner .nm{font-family:'Saira Condensed'; font-weight:700; font-size:16px; letter-spacing:.04em; text-transform:uppercase; color:var(--mid);}
+  .corner .sev{margin-left:auto; font-family:'JetBrains Mono'; font-size:10px; font-weight:700; letter-spacing:.1em; padding:3px 9px; border:1px solid var(--scr); color:var(--scr-soft); border-radius:2px;}
+  .corner .arg{font-size:14.5px; line-height:1.55; color:#D6D3C9;}
+  .corner .arg b{color:var(--hi); font-weight:700;}
+  .corner .arg .em{color:var(--enc-soft); font-weight:600;} .corner.scr .arg .em{color:var(--scr-soft);}
+  .counter{display:inline-flex; align-items:center; gap:7px; margin-bottom:9px; font-family:'JetBrains Mono'; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    padding:3px 9px; border:1px dashed var(--line2); border-radius:2px;}
+  .corner.enc .counter{color:var(--scr-soft);} .corner.scr .counter{color:var(--enc-soft);}
+
+  /* ============ REFEREE DECISION (scorecard) ============ */
+  .verdict{margin:20px 46px 0; position:relative; background:var(--bone); color:var(--bone-ink); border-radius:4px; padding:20px 26px 18px; box-shadow:0 -2px 0 var(--gold), 0 18px 40px rgba(0,0,0,.4);}
+  .verdict .vtop{display:flex; align-items:center; gap:14px; border-bottom:2px solid var(--bone-ink); padding-bottom:12px; margin-bottom:13px;}
+  .verdict .vtop .ttl{font-family:'Saira Condensed'; font-weight:800; font-size:30px; letter-spacing:.04em; text-transform:uppercase; line-height:.9; white-space:nowrap;}
+  .verdict .vtop .deci{font-family:'JetBrains Mono'; font-size:12px; font-weight:700; letter-spacing:.14em; color:#fff; background:var(--bone-ink); padding:5px 11px; border-radius:2px;}
+  .verdict .vtop .recall{margin-left:auto; font-family:'JetBrains Mono'; font-size:11px; color:#6A5F45; text-align:right; line-height:1.5;}
+  .verdict .vtop .recall b{color:var(--bone-ink);}
+  .verdict .body{display:grid; grid-template-columns:1fr 168px; gap:24px; align-items:start;}
+  .verdict .call{font-family:'Archivo'; font-size:15.5px; line-height:1.55; color:#3A331F;}
+  .verdict .call b{color:var(--bone-ink); font-weight:700;}
+  .verdict .acts{display:flex; gap:22px; margin-top:13px;}
+  .verdict .acts .a{flex:1;}
+  .verdict .acts .a .n{font-family:'Saira Condensed'; font-weight:800; font-size:14px; letter-spacing:.1em; color:#7A6A3E; text-transform:uppercase; border-bottom:1px solid var(--bone2); padding-bottom:5px; margin-bottom:6px;}
+  .verdict .acts .a .t{font-size:13.5px; line-height:1.45; color:#3A331F;}
+  .verdict .acts .a .t b{font-weight:700;}
+  .stamp{position:relative; display:grid; place-items:center;}
+  .stamp svg{width:148px; height:148px;}
+  .stamp .sig{position:absolute; bottom:-2px; font-family:'Saira Condensed'; font-weight:700; font-size:13px; letter-spacing:.06em; color:#6A5F45; text-transform:uppercase; text-align:center; width:100%;}
+
+  footer{padding:11px 46px 13px; font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.04em; color:var(--dim); display:flex; gap:9px; align-items:center;}
+  footer .sep{color:var(--line2);}
+
+  /* reveal motion */
+  .round, .verdict, .trow{opacity:1;}
+  .play .round{opacity:0; animation:ri .5s ease forwards;}
+  .play .verdict{opacity:0; animation:ri .55s ease forwards;}
+  @keyframes ri{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
+  .play .r1{animation-delay:.15s;} .play .r2{animation-delay:.75s;} .play .verdict{animation-delay:1.45s;}
+
+  .replay{position:fixed; top:18px; right:22px; z-index:9; display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 13px; border-radius:3px; background:var(--ink2); border:1px solid var(--line2); color:var(--mid); font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:.08em; cursor:pointer;}
+  .replay:hover{color:var(--hi); border-color:var(--gold);}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <!-- POSTER -->
+  <div class="poster">
+    <div class="top">
+      <div class="l"><span class="mk"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 14l6-2 2-6 3 9 2-3 5 2" stroke="#111219" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>FormForge AI · Form Debate</div>
+      <div class="rec">RECORD №048 · LIVE</div>
+    </div>
+    <div class="matchup">
+      <div class="name l"><b>The<br>Encourager</b><span>GREEN CORNER · MOTIVATIONAL PT</span></div>
+      <div class="vs">VS</div>
+      <div class="name r"><b>The<br>Scrutinizer</b><span>RED CORNER · EXERCISE PHYSIOLOGY PhD</span></div>
+    </div>
+    <div class="bout-meta">
+      <span>SQUAT</span><span class="pipe">/</span><span>SIDE ANGLE</span><span class="pipe">/</span><span>3 REPS</span><span class="pipe">/</span><span>FORM <b>65</b></span><span class="pipe">/</span>
+      <span class="round">🔔 ROUND <b>2</b> OF 3</span>
+    </div>
+  </div>
+
+  <!-- TALE OF THE TAPE -->
+  <div class="tape">
+    <div class="tape-h">Tale of the Tape</div>
+    <div class="trow"><div class="ev">10 yrs floor</div><div class="lab">Experience</div><div class="sv">PhD · research</div></div>
+    <div class="trow"><div class="ev dim">Warm, momentum-first</div><div class="lab">Coaching style</div><div class="sv dim">Cold, evidence-first</div></div>
+    <div class="trow"><div class="ev">“Quick, fixable”</div><div class="lab">Read on this set</div><div class="sv">“Stop &amp; correct”</div></div>
+    <div class="trow"><div class="ev" style="color:var(--gold)">MODERATE</div><div class="lab">Severity called</div><div class="sv" style="color:var(--scr-soft)">HIGH</div></div>
+  </div>
+
+  <!-- ROUNDS -->
+  <div class="rounds">
+    <div class="round r1">
+      <div class="round-tab"><span class="bell">🔔</span>Round 1<span class="cnt">OPENING READS</span></div>
+      <div class="bout">
+        <div class="corner enc">
+          <div class="ch"><span class="tab">● GREEN</span><span class="nm">The Encourager</span></div>
+          <div class="arg">Solid depth on <b>all 3 reps</b> — that control is hard-won. One thing to protect: the lower back on the drive up. <span class="em">Cue: proud chest, film the side again next set.</span></div>
+        </div>
+        <div class="corner scr">
+          <div class="ch"><span class="tab">RED ●</span><span class="nm">The Scrutinizer</span><span class="sev">SEV · HIGH</span></div>
+          <div class="arg"><b>Excessive forward lean.</b> Torso pitches past 45°, routing shear into the lumbar spine — and there's a prior lumbar injury on file. <span class="em">Required: cut load 20–30%, re-pattern the brace.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="round r2">
+      <div class="round-tab"><span class="bell">🔔</span>Round 2<span class="cnt">COUNTERS</span></div>
+      <div class="bout">
+        <div class="corner enc">
+          <div class="counter">↩ Counters the Red corner</div>
+          <div class="arg">The lean is real — I'm not waving it off. But it's a <b>fast fix</b>: drop the load, cue the torso, and it cleans up in a session or two. Keep them training while we fix it.</div>
+        </div>
+        <div class="corner scr">
+          <div class="counter">↩ Counters the Green corner</div>
+          <div class="arg">"Quick fix" <b>undersells the risk</b>. With a documented injury, loaded reps in this position are a stop-and-correct — not a cue-and-continue.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFEREE'S DECISION -->
+  <div class="verdict">
+    <div class="vtop">
+      <div class="ttl">Referee's Decision</div>
+      <div class="deci">UNANIMOUS</div>
+      <div class="recall">⟲ Recalled <b>Record №041</b> · Apr 18<br>same lean flagged — <b>recurring</b></div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="call">Both corners land on <b>excessive forward lean</b> as the priority. Given the lumbar history, the Head Coach sides with caution: correct it now, then progress.</div>
+        <div class="acts">
+          <div class="a"><div class="n">01 · Reduce load 20–30%</div><div class="t">Takes shear off the spine while you re-pattern. <b>Scrutinizer's call</b>, Encourager concurs.</div></div>
+          <div class="a"><div class="n">02 · Chest proud, torso vertical</div><div class="t">Cue on the drive up. <b>Encourager's cue</b>, validated by the mechanism.</div></div>
+        </div>
+      </div>
+      <div class="stamp">
+        <svg viewBox="0 0 148 148" fill="none">
+          <circle cx="74" cy="74" r="71" stroke="#B89A52" stroke-width="2"/>
+          <circle cx="74" cy="74" r="62" stroke="#B89A52" stroke-width="1"/>
+          <path id="cp" d="M74 22 a52 52 0 1 1 -0.1 0" fill="none"/>
+          <text fill="#7A6A3E" font-family="JetBrains Mono" font-size="9.5" letter-spacing="3.2"><textPath href="#cp" startOffset="0">· OFFICIAL · THE MEDIATOR · HEAD COACH </textPath></text>
+          <path d="M55 76l13 13 26-30" stroke="#7A6A3E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="sig">Head Coach</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>⚕ FOR INFORMATION ONLY — NOT MEDICAL ADVICE.</span>
+    <span class="sep">|</span>
+    <span>STOP AND CONSULT A PROFESSIONAL IF YOU FEEL PAIN.</span>
+  </footer>
+</div>
+
+<a href="../FormForge%20Concepts.html" style="position:fixed;bottom:14px;right:22px;z-index:9;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 13px;border-radius:3px;background:#171922;border:1px solid #373B4C;color:#9A988C;font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.06em;text-decoration:none;">← Concepts</a>
+<button class="replay" id="replay">↻ REPLAY</button>
+
+<script>
+  const stage = document.getElementById('stage');
+  function play(){ stage.classList.remove('play'); void stage.offsetWidth; stage.classList.add('play'); }
+  document.getElementById('replay').addEventListener('click', play);
+  if(!new URLSearchParams(location.search).has('still')) play();
+</script>
+</body>
+</html>
