@@ -93,7 +93,7 @@ with st.sidebar:
     st.divider()
     st.session_state["mode"] = st.radio(
         "DATA SOURCE", ["Demo", "Live"],
-        help="Demo: 내장 샘플로 즉시 렌더(GCP 불필요). Live: 실제 파이프라인/Firestore.",
+        help="Demo: instant render from built-in samples (no GCP). Live: real pipeline / Firestore.",
         index=0 if st.session_state["mode"] == "Demo" else 1,
     )
     if st.session_state["mode"] == "Live":
@@ -101,10 +101,10 @@ with st.sidebar:
         if st.session_state.get("debate_id"):
             st.caption(f"debate_id · `{st.session_state['debate_id']}`")
     st.divider()
-    st.slider("🔍 화면 배율", 0.70, 1.60, 1.0, 0.05, key="zoom",
-              help="1440px 고정 디자인을 비율 유지한 채 확대/축소. 모니터가 넓으면 키워서 빈 여백을 채우세요.")
+    st.slider("🔍 Zoom", 0.70, 1.60, 1.0, 0.05, key="zoom",
+              help="Scale the fixed 1440px design up/down at a constant ratio. On a wide monitor, increase it to fill the empty margins.")
     st.divider()
-    st.caption("⚕ 정보 제공용 · 의학적 조언 아님")
+    st.caption("⚕ For information only · not medical advice")
 
 
 IS_LIVE = st.session_state["mode"] == "Live"
@@ -160,7 +160,7 @@ def _run_live_analysis(video_path: str) -> None:
         "experience_level": "intermediate",
     }
     debate_id = f"ui_{int(Path(video_path).stat().st_mtime)}"
-    with st.spinner("코너들이 영상을 분석 중… (PoseExtractor → 토론 → 합의, 최대 ~2분)"):
+    with st.spinner("The corners are analyzing your video… (PoseExtractor → debate → ruling, up to ~2 min)"):
         try:
             e2e = asyncio.run(run_full_e2e(
                 video_uri=video_path, user_context=user_ctx,
@@ -168,16 +168,16 @@ def _run_live_analysis(video_path: str) -> None:
                 debate_id=debate_id, use_mcp=True,
             ))
         except PoseExtractionError as pe:
-            st.error(f"PoseExtractor 신뢰도 가드 — 토론 미진입: {pe}")
+            st.error(f"PoseExtractor confidence guard — debate not entered: {pe}")
             return
         except Exception as e:  # noqa: BLE001
-            st.error(f"라이브 분석 실패: {type(e).__name__}: {e}")
+            st.error(f"Live analysis failed: {type(e).__name__}: {e}")
             return
     st.session_state["debate_id"] = debate_id
     st.session_state["live_pose"] = e2e.pose_extraction
     st.session_state["live_debate"] = e2e.session.debate.as_dict()
     st.session_state["live_mediator"] = e2e.session.mediator.as_dict()
-    st.success(f"분석 완료 · debate_id={debate_id} — Live Debate 화면에서 확인하세요.")
+    st.success(f"Analysis complete · debate_id={debate_id} — see the Live Debate screen.")
 
 
 def _live_or_demo() -> tuple[dict, dict, dict]:
@@ -194,7 +194,7 @@ def _live_or_demo() -> tuple[dict, dict, dict]:
         mediator = st.session_state.get("live_mediator") or (snap or {}).get("consensus")
         if pose and debate:
             return pose, debate, (mediator or {})
-        st.info("라이브 데이터가 아직 없습니다 — Weigh-In 에서 분석을 실행하세요. (지금은 Demo 데이터 표시)")
+        st.info("No live data yet — run an analysis from Weigh-In. (Showing Demo data for now)")
     return sample_state.SAMPLE_POSE, sample_state.SAMPLE_DEBATE, sample_state.SAMPLE_MEDIATOR
 
 
@@ -211,10 +211,10 @@ if screen == "upload":
     show("upload", ctx)
 
     with st.container():
-        st.markdown("##### 🎬 계체량 — 실제 입력 (Weigh-In controls)")
+        st.markdown("##### 🎬 Weigh-In — actual input (controls)")
         c1, c2 = st.columns([1.4, 1])
         with c1:
-            up = st.file_uploader("운동 영상 (MP4 / MOV · 측면 권장)", type=["mp4", "mov", "avi", "webm"])
+            up = st.file_uploader("Workout video (MP4 / MOV · side angle recommended)", type=["mp4", "mov", "avi", "webm"])
             if up is not None:
                 tmp = _ROOT / "data" / "sample_videos" / f"_ui_upload_{up.name}"
                 tmp.parent.mkdir(parents=True, exist_ok=True)
@@ -226,7 +226,7 @@ if screen == "upload":
                 "Weight class", ["squat", "deadlift", "pushup"],
                 index=["squat", "deadlift", "pushup"].index(st.session_state["exercise"]),
             )
-        inj = st.text_input("부상/제약 (쉼표로 구분)", value=", ".join(st.session_state["injuries"]))
+        inj = st.text_input("Injuries / limitations (comma-separated)", value=", ".join(st.session_state["injuries"]))
         st.session_state["injuries"] = [s.strip() for s in inj.split(",") if s.strip()]
 
         b1, b2 = st.columns([1, 3])
@@ -235,9 +235,9 @@ if screen == "upload":
                 if IS_LIVE and st.session_state.get("video_path"):
                     _run_live_analysis(st.session_state["video_path"])
                 elif IS_LIVE:
-                    st.warning("Live 모드: 먼저 영상을 업로드하세요.")
+                    st.warning("Live mode: upload a video first.")
                 else:
-                    st.success("Demo 모드 — 왼쪽 'Live Debate' 화면으로 이동해 토론을 확인하세요. 🥊")
+                    st.success("Demo mode — go to the 'Live Debate' screen on the left to watch the debate. 🥊")
 
 elif screen == "debate":
     if IS_LIVE and st_autorefresh is not None and st.session_state.get("debate_id"):
@@ -252,7 +252,7 @@ elif screen == "debate":
 elif screen == "consensus":
     pose, debate, mediator = _live_or_demo()
     if not mediator:
-        st.info("아직 합의(Mediator) 결과가 없습니다.")
+        st.info("No consensus (Mediator) result yet.")
         mediator = sample_state.SAMPLE_MEDIATOR
     ctx = render.consensus_ctx(mediator=mediator, debate=debate, pose=pose,
                                record_label=f"{RECORD} · SQUAT")
@@ -270,7 +270,7 @@ elif screen == "feedback":
     show("feedback", ctx)
 
     with st.container():
-        st.markdown("##### ★ 채점 — 실제 입력 (Score the Corners)")
+        st.markdown("##### ★ Score the Corners — actual input")
         c1, c2, c3 = st.columns(3)
         with c1:
             st.session_state["enc_rating"] = st.radio(
@@ -310,15 +310,15 @@ elif screen == "feedback":
                         "harshness": old.get("harshness", 0.5), "caution": old.get("detail", 0.5)}
                     st.session_state["live_persona_after"] = {
                         "harshness": new.get("harshness", 0.35), "caution": new.get("detail", 0.55)}
-                    st.success("피드백 반영 완료 — 페르소나가 재단조(re-forge)되었습니다. "
-                               "'Between Bouts' 화면에서 변화를 확인하세요.")
+                    st.success("Feedback applied — the personas have been re-forged. "
+                               "See the change on the 'Between Bouts' screen.")
                 except Exception as e:  # noqa: BLE001
-                    st.warning(f"Live 피드백 처리 실패 (Demo 배너만 표시): {type(e).__name__}: {e}")
+                    st.warning(f"Live feedback failed (showing Demo banner only): {type(e).__name__}: {e}")
             st.session_state["feedback_sent"] = True
             st.rerun()
 
         if st.session_state["feedback_sent"]:
-            if st.button("다시 채점하기 (reset)"):
+            if st.button("Score again (reset)"):
                 st.session_state["feedback_sent"] = False
                 st.rerun()
 
@@ -341,4 +341,4 @@ elif screen == "trace":
                            record_label=f"PHOENIX TRACE · {RECORD}")
     show("trace", ctx)
     st.caption("Phoenix Cloud: https://app.phoenix.arize.com — chain trace + convergence_judge LLM span "
-               "+ Mediator 아래 MCP tool call(query_past_debates / query_safety_flags) child span.")
+               "+ MCP tool calls (query_past_debates / query_safety_flags) as child spans under the Mediator.")

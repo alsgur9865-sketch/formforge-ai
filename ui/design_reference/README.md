@@ -13,6 +13,8 @@ The files in this bundle are **design references created in HTML/CSS/vanilla JS*
 ## Fidelity
 **High-fidelity (hifi).** Final colors, typography, spacing, and interactions are specified. Recreate the UI faithfully using the codebase's libraries. Exact hex/px values are listed under **Design Tokens** and per-screen below.
 
+> **Consistency pass (current revision):** all six screens were normalized so the set reads as **one system**: every screen is now a **uniform `1440×900` (16:10) frame** (previously they ranged 880–1180px tall); the Official-Decision screen's cream document is now a **contained verdict card floating on the dark stage** (gold top edge, dark header/footer) rather than a full-bleed light page, so it stays in the same dark world as the others; and the concept gallery now renders **static `1440×900` thumbnails** in a uniform 3×2 grid instead of nine live scaled iframes. When implementing, preserve this uniformity — one frame ratio, one dark stage, the paper material used only as a *contained card*, never as a full page background.
+
 ---
 
 ## Design Tokens (shared across all 6 screens)
@@ -42,7 +44,7 @@ The files in this bundle are **design references created in HTML/CSS/vanilla JS*
 Used for the referee's-decision document and the "corner instruction" note — creates material contrast against the dark stage.
 | Token | Hex |
 |---|---|
-| bone (paper) | `#EAE3D2` (consensus doc uses `#ECE5D3`) |
+| bone (paper) | `#EAE3D2` (consensus card uses `#ECE5D3`) |
 | bone-ink (text on paper) | `#2A2519` |
 | bone secondary text | `#4A4327` / `#7A6E4C` |
 | paper rule/border | `#D2C7AB` / `#D8CFB8` |
@@ -60,7 +62,7 @@ Representative sizes: hero H1 `Saira Condensed 900 / 50–66px`; section headers
 - Border radius: cards/bars `3–6px` (sharp, editorial — NOT pill-rounded); avatars `8–14px`; chips/segments `2–4px`; circular seals/sparks `50%`.
 - Header strip: `border-bottom: 3px solid #ECEAE2`, background = subtle 135° hatch `repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px)` over ink2.
 - Shadows: bars `0 1px 3px rgba(0,0,0,.4)`; raised cards `0 16–18px 34–40px rgba(0,0,0,.4)`; MCP glow `0 0 12px rgba(201,162,75,.45)`.
-- Fixed canvas sizes (each screen is a fixed-width design, letterboxed in ink): widths all **1440px**; heights per screen listed below.
+- **Fixed canvas: every screen is a uniform `1440×900` (16:10) frame**, letterboxed in ink. (This is a hard constraint of the current revision — do not let any screen grow taller; redistribute/compress content to fit 900px instead.)
 
 ### Recurring chrome (every screen)
 - **Top strip:** left = FormForge mark (22px hammer/spark SVG in a white rounded square) + mono context label; center = `Saira 800` gold screen title; right = mono record id. All three one line (`white-space:nowrap`).
@@ -77,32 +79,33 @@ A struck spark/forge glyph used everywhere (recolor stroke per context):
 
 ## Screens / Views (product flow order)
 
-### 1. Weigh-In — Upload / Start  · `screens/upload-fightcard.html` · 1440×920
+### 1. Weigh-In — Upload / Start  · `screens/upload-fightcard.html` · 1440×900
 - **Purpose:** user submits a workout video and registers the "bout."
 - **Layout:** strip; then a 2-column main grid `1.36fr / 1fr`.
   - **Left (form):** eyebrow `SUBMIT YOUR TAPE` (ember mono) → H1 "Step into the ring." (Saira 900, 54px) → **drop zone** (full-width, `2px dashed line2`, radius 6, ember radial glow on hover, 54px ember up-arrow in a circle, title "Drop your workout video", sub "MP4 / MOV · a side angle reads form best", ember text link "or watch a sample bout →") → **Weight class** label + 3 selectable cards in a `repeat(3,1fr)` grid (Squat / Deadlift / Push-up; selected card gets `gold` border + tinted bg + gold check tick top-right) → **Medical corner notes (optional)** field: a bordered container holding removable red chips (e.g. "Prior lower-back injury ✕") + a text input → **CTA row** at bottom: primary `Send to the corners →` (ember, Saira 800) + ghost `Try a sample bout`.
-  - **Right (sidebar, panel bg):** header `TONIGHT'S CARD`; two coach mini-cards (Encourager green-left-border / Scrutinizer red-left-border, each: avatar + name + one-line role); then `HOW THE BOUT RUNS` 3 numbered steps (ember numerals): 1 PoseExtractor analyzes · 2 The corners debate · 3 The Head Coach rules.
+  - **Right (sidebar, panel bg):** **vertically centered** (`justify-content:center`) so the column is balanced top-to-bottom. Header `TONIGHT'S CARD`; two coach mini-cards (Encourager green-left-border / Scrutinizer red-left-border, each: avatar + name + one-line role); then `HOW THE BOUT RUNS` 3 numbered steps (ember numerals): 1 PoseExtractor analyzes · 2 The corners debate · 3 The Head Coach rules.
 - **Interactions:** weight-class cards are click-to-select (single). Notes input: Enter adds a chip; chip ✕ removes it. Drop zone, both CTAs, and "sample" link all navigate to `screens/debate-fightcard.html` (in production: trigger upload → analysis pipeline).
 
-### 2. The Live Debate (HERO) · `screens/debate-fightcard.html` · 1440×1180
+### 2. The Live Debate (HERO) · `screens/debate-fightcard.html` · 1440×900
 - **Purpose:** the headline screen — watch the two coaches argue across rounds, then converge.
 - **Layout (top→bottom):**
   - **Fight poster header:** small top row (`FormForge AI · Form Debate` left, `RECORD №048 · LIVE` gold right). Big **matchup**: `THE ENCOURAGER` (right-aligned, green-soft) — circular bone **VS** medallion — `THE SCRUTINIZER` (left-aligned, red-soft), each ~62px Saira 800 with a mono sub-label (corner + credential). Then a centered **bout-meta** mono row: `SQUAT / SIDE ANGLE / 3 REPS / FORM 65 / 🔔 ROUND 2 OF 3`.
   - **Tale of the Tape:** centered header `— TALE OF THE TAPE —`; rows in a `1fr 230px 1fr` grid (left value right-aligned, center mono label, right value left-aligned), dotted row dividers. Rows: Experience / Coaching style / Read on this set / Severity called (left = gold MODERATE, right = red HIGH).
   - **Rounds:** each round = a centered tab medallion (`🔔 Round N` + mono caption) over a 2px rule, then a `1fr 1fr` **bout** grid with a center divider. Left = Encourager corner (`● GREEN` chip), right = Scrutinizer corner (`RED ●` chip + `SEV · HIGH` outline badge). Round 2 cards show a dashed `↩ Counters the …corner` stamp. Body copy 14.5px, key phrases bold/colored.
   - **Referee's Decision (cream scorecard):** `0 -2px 0 gold` top edge; title `Referee's Decision` (Saira 800, one line) + `UNANIMOUS` chip + recall note (`⟲ Recalled Record №041 · Apr 18 — recurring`). Body `1fr 168px`: left = ruling sentence + two priority actions (number stroke-outlined in gold, title + rationale tagging which corner backed it); right = **circular OFFICIAL stamp** (SVG `textPath` ring reading `· OFFICIAL · THE MEDIATOR · HEAD COACH` + check mark) over a `Head Coach` signature.
+- **Density note:** this screen carries the most content, so it is tuned to fit `900px` exactly: matchup names `44px`, the **Tale of the Tape** rows are compact (`19px` values, `3px` row padding), the rounds region is `flex:1` (absorbs slack), and the Referee's Decision card is compact (`12px` padding, body grid `1fr 140px`, stamp `120px`, the `UNANIMOUS` chip uses `margin-right:auto` on the title to sit clear on the right). Keep this screen visually dense — it is the hero and should feel "full," not airy.
 - **Motion:** on load, rounds and the verdict reveal staggered (`translateY(12px)→0`, opacity, delays r1 `.15s`, r2 `.75s`, verdict `1.45s`). Replay button re-triggers.
 
-### 3. Official Decision — Consensus · `screens/consensus-fightcard.html` · 1440×880
+### 3. Official Decision — Consensus · `screens/consensus-fightcard.html` · 1440×900
 - **Purpose:** the Head Coach's full ruling (this is screen 2's scorecard, expanded to a full document).
-- **Layout:** dark strip (matchup mini-line center) → full **cream document** (`gold` inset top edge, faint dotted paper grain).
+- **Layout:** dark strip (matchup mini-line center) → a **contained cream "verdict card"** floating on the dark stage. The card is **not** full-bleed: it has `margin:20px 46px 4px`, `border-radius:7px`, a `4px` **gold top edge**, a deep drop shadow (`0 24px 60px rgba(0,0,0,.55)`), and a faint dotted paper grain inside. The **footer is dark** (`ink2`, like every other screen) — the paper material is confined to the card so the screen stays in the dark world. Inside the card:
   - **dhead:** eyebrow `HEAD COACH'S RULING` (gold) + H1 `THE DECISION.` (Saira 900, 64px); right = `UNANIMOUS` dark chip + `CONVERGED · 2 ROUNDS`.
   - **Convergence row** (`1fr 132px 1fr`): left Encourager corner card + right Scrutinizer corner card (white cards on the cream, colored left/right borders, each with corner chip + name + italic one-line position), with a center **Head Coach seal** (dark circle, gold balance icon, gold→`HEAD COACH` label) and a green→gold→red gradient connector line behind it.
   - **Ruling** paragraph (Archivo 21px), key phrase in gold.
   - **Body grid `1.5fr / 1fr`:** left = `⚖ THE RULING · PRIORITY ACTIONS` with two acts (huge gold stroke-outlined numerals 01/02 + title + rationale tagging the backing corner) and the **OFFICIAL stamp + "The Mediator / Head Coach" signature**; right = `⟲ PRIOR RECORD ON FILE` callout (`MCP · query_past_debates`, Record №041, Apr 18, recurring red chip) + `DECISION BASIS` agreement bars (Lean is the risk 96 gold / Reduce load 88 red / Cue, don't stop 64 green).
-- **Motion (convergence):** on load the two corner cards slide inward from ±40px + fade in (transition `.7s`), suggesting the positions converging onto the Head Coach. A JS fallback removes the `intro` class after 900ms so the resting (visible) state is guaranteed.
+- **Motion (convergence):** on load the two corner cards slide inward from ±40px + fade in (transition `.7s`), suggesting the positions converging onto the Head Coach. **Important:** the resting state must be visible — the script guarantees it via double-`requestAnimationFrame` + a `1000ms` safety `setTimeout` that clears the `intro` class, and the `?still=1` preview path skips the animation entirely. (A previous timing bug left the corner cards stuck at `opacity:0`; never let the hidden start state persist.)
 
-### 4. Score the Corners — Feedback · `screens/feedback-fightcard.html` · 1440×880 · **interactive**
+### 4. Score the Corners — Feedback · `screens/feedback-fightcard.html` · 1440×900 · **interactive**
 - **Purpose:** the user judges each coach; the scores tune persona for the next bout.
 - **Layout:** strip → centered body (max-width 1080) → eyebrow `YOU'RE THE JUDGE` + H1 "Score the corners." + lede → **three rows** (`300px / 1fr` grid, colored left border per coach):
   - Encourager (`AFFECTS · WARMTH`): segmented `Too warm | Just right | Too cold` (3-col), each option has a tiny mono sub-caption; selected fills with green.
@@ -111,7 +114,7 @@ A struck spark/forge glyph used everywhere (recolor stroke per context):
   - **Notes to the corner** one-line input. **Foot:** hint text + `Submit your card →` (ember).
 - **Interactions:** segments are single-select per group; stars set rating on hover/click with a word label per value. **On submit:** `#stage` gets class `sent` → the form/notes hide and a **re-forging banner** appears (ember spark pulse + "Card logged — the corners are re-forging." + link `See how they evolve →` → `screens/evolution-fightcard.html`). Default selections shown above make the static state look populated.
 
-### 5. Between Bouts — Evolution · `screens/evolution-fightcard.html` · 1440×920
+### 5. Between Bouts — Evolution · `screens/evolution-fightcard.html` · 1440×900
 - **Purpose:** prove self-improvement — the same flaw, one week apart, gets a different (softer) coach because of the user's feedback.
 - **Layout:** strip (`The Scrutinizer · Training Log`, `RECORD №041 → №048`) → hero (eyebrow `BETWEEN BOUTS · SELF-IMPROVEMENT`, H1 "Your corner re-forged itself." with `re-forged` in ember; right lede) → **diptych** (`1fr 226px 1fr`):
   - **Week 1 (before, cold/slate tint):** `WEEK 1` (slate Saira) + `RECORD №041`; a muted quote card (`RED CORNER · WK1`, harsh sample, `HARSHNESS 0.50`); persona stat bars at week-1 values in slate.
@@ -126,7 +129,7 @@ A struck spark/forge glyph used everywhere (recolor stroke per context):
 - **Interactions:** static (informational dashboard).
 
 ### Concept gallery (index) · `FormForge Concepts.html`
-Not a product screen — an internal overview that embeds all six screens as scaled live `<iframe>` previews (the iframe scales via its **own** `transform`; previews use a `?still=1` query param that tells each screen to render its final composition without intro animation). Useful as a map of the flow. Three earlier exploration directions (dark-tech, clinical-light, experimental) are linked below the recommended set for context — they are **not** part of the final system.
+Not a product screen — an internal overview / running order of the fight card. The current revision renders the six screens as **static `1440×900` thumbnails** (`<img>` from `shots/g-*.png`, `object-fit:cover; object-position:top`) in a **uniform 3×2 grid** — this replaced an older version that embedded nine live scaled `<iframe>`s (which caused font-flash/jank and ragged heights). The gallery uses the same `Saira Condensed / Archivo / JetBrains Mono` type system as the screens, a dark hatched stage, a coach-color legend, and a `★ The Bout` ribbon marking the hero (screen 2). The three earlier exploration directions were **removed** from the gallery to keep the set unified (their files may still exist in the project but are not part of the system). If you regenerate thumbnails, capture each screen at its final composition (`?still=1`) and crop to exactly `1440×900`.
 
 ---
 
@@ -163,6 +166,7 @@ Recommended fight-card system (the deliverable):
 - `screens/feedback-fightcard.html` — 4. Score the Corners (interactive)
 - `screens/evolution-fightcard.html` — 5. Between Bouts
 - `screens/trace-fightcard.html` — 6. Official Timesheet
-- `FormForge Concepts.html` — overview gallery (embeds all six; reference only)
+- `FormForge Concepts.html` — overview gallery (uniform 3×2 grid of static `shots/g-*.png` thumbnails; reference only)
+- `shots/g-*.png` — the six `1440×900` thumbnail images the gallery embeds
 
 Each screen is self-contained (inline `<style>` + small vanilla `<script>`); open any file directly in a browser to inspect computed styles, exact copy, and behavior.

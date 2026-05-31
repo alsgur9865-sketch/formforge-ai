@@ -10,9 +10,9 @@
     --enc:#37B36A; --enc-soft:#8FE0B0; --scr:#E8415C; --scr-soft:#F79DAC; --gold:#C9A24B; --gold2:#E2C57A; --ember:#E2672E;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{width:1440px; min-height:880px; overflow:hidden; position:relative;}
+  html,body{width:1440px; min-height:900px; overflow:hidden; position:relative;}
   body{background:var(--ink); color:var(--hi); font-family:'Archivo',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
-  .stage{min-height:880px; display:flex; flex-direction:column;}
+  .stage{min-height:900px; display:flex; flex-direction:column;}
 
   .strip{display:flex; align-items:center; justify-content:space-between; padding:13px 46px; background:
       repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 8px), var(--ink2);
@@ -22,14 +22,14 @@
   .strip .c{font-family:'Saira Condensed'; font-weight:800; font-size:18px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); white-space:nowrap;}
   .strip .r{font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.14em; color:var(--dim); white-space:nowrap;}
 
-  .body{flex:1; display:flex; flex-direction:column; justify-content:center; padding:24px 46px; gap:22px; max-width:1080px; margin:0 auto; width:100%; min-height:0;}
+  .body{flex:1; display:flex; flex-direction:column; justify-content:center; padding:28px 46px; gap:26px; max-width:1080px; margin:0 auto; width:100%; min-height:0;}
   .ey{font-family:'JetBrains Mono'; font-size:12px; letter-spacing:.18em; color:var(--ember); text-transform:uppercase;}
-  h1{font-family:'Saira Condensed'; font-weight:900; font-size:50px; line-height:.84; text-transform:uppercase; letter-spacing:.01em; margin:7px 0 6px;}
+  h1{font-family:'Saira Condensed'; font-weight:900; font-size:58px; line-height:.84; text-transform:uppercase; letter-spacing:.01em; margin:7px 0 6px;}
   .lede{font-size:14.5px; color:var(--mid); line-height:1.5; max-width:620px;}
   .lede b{color:var(--hi);}
 
-  .rows{display:flex; flex-direction:column; gap:13px;}
-  .row{display:grid; grid-template-columns:300px 1fr; align-items:center; gap:24px; padding:16px 20px; border:1px solid var(--line); border-radius:5px; background:var(--ink2);}
+  .rows{display:flex; flex-direction:column; gap:15px;}
+  .row{display:grid; grid-template-columns:300px 1fr; align-items:center; gap:24px; padding:20px 22px; border:1px solid var(--line); border-radius:5px; background:var(--ink2);}
   .row.enc{border-left:3px solid var(--enc);} .row.scr{border-left:3px solid var(--scr);} .row.med{border-left:3px solid var(--gold);}
   .who{display:flex; align-items:center; gap:13px;}
   .who .av{width:42px; height:42px; border-radius:10px; display:grid; place-items:center; flex:none;}
@@ -41,7 +41,7 @@
   .who .rl{font-family:'JetBrains Mono'; font-size:10px; color:var(--dim); margin-top:5px; letter-spacing:.04em; white-space:nowrap;}
 
   .seg{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
-  .opt{padding:11px 10px; text-align:center; border:1px solid var(--line2); border-radius:4px; background:var(--ink); font-family:'Saira Condensed'; font-weight:600; font-size:16px; letter-spacing:.04em; text-transform:uppercase; color:var(--mid);}
+  .opt{padding:14px 10px; text-align:center; border:1px solid var(--line2); border-radius:4px; background:var(--ink); font-family:'Saira Condensed'; font-weight:600; font-size:16px; letter-spacing:.04em; text-transform:uppercase; color:var(--mid);}
   .opt .sm{display:block; font-family:'JetBrains Mono'; font-size:9px; letter-spacing:.04em; color:var(--dim); margin-top:3px; text-transform:none;}
   .row.enc .opt.on{background:var(--enc); border-color:var(--enc); color:#06240F;}
   .row.scr .opt.on{background:var(--scr); border-color:var(--scr); color:#fff;}
@@ -126,7 +126,7 @@
     {% else %}
     <div class="note">
       <span class="nl">Notes to the corner</span>
-      <span class="nt {{ 'empty' if not note }}">{{ note or 'One line for the coaches — optional… (사이드바 입력)' }}</span>
+      <span class="nt {{ 'empty' if not note }}">{{ note or 'One line for the coaches — optional…' }}</span>
     </div>
     <div class="foot">
       <div class="hint">Your scores feed back into each persona before your next bout — this is the loop you saw in <b style="color:var(--mid)">Between Bouts</b>.</div>

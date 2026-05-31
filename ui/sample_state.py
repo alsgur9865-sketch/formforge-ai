@@ -10,6 +10,7 @@
 
 데모 모드와 라이브 모드가 **같은 render 매퍼**를 통과하므로, 데모가 곧 매핑 검증이다.
 스토리: 측면 스쿼트 / 과도한 전방 기울기(forward lean) / 요추 부상 이력 — 디자인 카피와 일치.
+표시 텍스트는 영어(디자인이 영어 Fight Card 톤). 백엔드 Gemini 페르소나는 한국어 유지.
 """
 
 from __future__ import annotations
@@ -48,12 +49,15 @@ SAMPLE_POSE: dict[str, Any] = {
     },
     "safety_flags": [
         {"severity": "high", "issue": "excessive_forward_lean", "rep_numbers": [1, 2, 3],
-         "rationale": "상체가 45°를 넘어 기울며 전단력이 요추로 집중됩니다 — 요추 부상 이력과 결합 시 위험."},
+         "rationale": "The torso tips past 45°, routing shear force into the lumbar spine — "
+                      "dangerous when paired with a prior lower-back injury."},
     ],
-    "reasoning": "3회 모두 깊이는 일정하고 통제됐습니다. 다만 최저점에서 상체가 47~51°로 과도하게 숙여져 "
-                 "굿모닝 스쿼트 패턴이 보입니다. 측면 영상이라 좌우 무릎 외반은 판단하지 않았습니다.",
+    "reasoning": "All 3 reps held a consistent, controlled depth. But at the bottom the torso "
+                 "folds to 47–51°, showing a good-morning squat pattern. Side-angle footage, "
+                 "so left/right knee valgus was not assessed.",
     "warnings": [],
-    "disclaimer": "정보 제공용입니다. 의학적 조언이 아닙니다. 통증이나 부상이 있으면 전문가와 상담하세요.",
+    "disclaimer": "Informational only. Not medical advice. "
+                  "If you feel pain or have an injury, consult a professional.",
 }
 
 
@@ -63,44 +67,46 @@ SAMPLE_POSE: dict[str, Any] = {
 
 _ENC_R1 = {
     "agent": "encourager", "round": 1,
-    "praise": "스쿼트 3회 모두 깊이가 일정하게 통제됐어요 — 그 control 은 쉽게 얻는 게 아닙니다.",
-    "concern_one": "한 가지만 지켜요: 드라이브 구간에서 허리를 보호하는 것.",
-    "actionable_tip": "큐: 가슴을 세우고, 다음 세트는 다시 측면에서 촬영해 비교해요.",
+    "praise": "All three squats hit a consistent, controlled depth — that kind of control isn't easy to build.",
+    "concern_one": "Just protect one thing: your lower back through the drive.",
+    "actionable_tip": "Cue: lift the chest, and film the next set from the side again to compare.",
     "addresses_scrutinizer": None,
 }
 _SCR_R1 = {
     "agent": "scrutinizer", "round": 1,
     "primary_risk": {
-        "name": "과도한 전방 기울기 (forward lean)",
+        "name": "Excessive forward lean",
         "severity": "high",
-        "mechanism": "상체가 45°를 넘어 숙여지며 전단력이 요추로 라우팅됩니다 — 게다가 요추 부상 이력이 기록돼 있습니다.",
-        "evidence_in_data": "Rep 1·2·3 back_angle_at_bottom 47~51°",
-        "threshold_breach": "> 45° (intermediate 허용치 초과)",
+        "mechanism": "The torso folds past 45°, routing shear force into the lumbar spine — "
+                     "and there's a documented lower-back injury on file.",
+        "evidence_in_data": "Rep 1·2·3 back_angle_at_bottom 47–51°",
+        "threshold_breach": "> 45° (exceeds the intermediate tolerance)",
     },
     "secondary_concerns": [],
-    "required_action": "필수: 중량 20–30% 감량, 브레이싱 재패턴.",
+    "required_action": "Required: cut load 20–30%, re-pattern the brace.",
     "tone_metadata": {"harshness": 0.5, "detail": 0.8},
     "addresses_encourager": None,
 }
 _ENC_R2 = {
     "agent": "encourager", "round": 2,
     "praise": "", "concern_one": "", "actionable_tip": "",
-    "addresses_scrutinizer": "기울기는 실재해요 — 무시하지 않습니다. 하지만 빠르게 고쳐지는 종류예요: "
-                             "중량 내리고 상체 큐 주면 한두 세션에 정리됩니다. 그동안에도 훈련은 계속하게 둬요.",
+    "addresses_scrutinizer": "The lean is real — I'm not dismissing it. But it's the fast-fixable kind: "
+                             "drop the load, cue the chest, and it cleans up in a session or two. "
+                             "Meanwhile, keep them training.",
 }
 _SCR_R2 = {
     "agent": "scrutinizer", "round": 2,
     "primary_risk": {
-        "name": "과도한 전방 기울기 (forward lean)", "severity": "high",
-        "mechanism": "부상 이력이 있는 상태에서 이 자세의 부하 반복은 누적 위험입니다.",
-        "evidence_in_data": "Rep 1·2·3 back_angle 47~51°", "threshold_breach": "> 45°",
+        "name": "Excessive forward lean", "severity": "high",
+        "mechanism": "With an injury on record, loaded reps in this position are a cumulative risk.",
+        "evidence_in_data": "Rep 1·2·3 back_angle 47–51°", "threshold_breach": "> 45°",
     },
     "secondary_concerns": [],
-    "required_action": "'빠른 수정'은 위험을 과소평가합니다. 기록된 부상이 있으면 이 자세의 부하 반복은 "
-                       "cue-and-continue 가 아니라 stop-and-correct 입니다.",
+    "required_action": "'Quick fix' underestimates the risk. With a documented injury, loaded reps in "
+                       "this position are stop-and-correct, not cue-and-continue.",
     "tone_metadata": {"harshness": 0.5, "detail": 0.8},
-    "addresses_encourager": "'빠른 수정'은 위험을 과소평가합니다. 기록된 부상이 있으면 이 자세의 부하 반복은 "
-                            "cue-and-continue 가 아니라 stop-and-correct 입니다.",
+    "addresses_encourager": "'Quick fix' underestimates the risk. With a documented injury, loaded reps in "
+                            "this position are stop-and-correct, not cue-and-continue.",
 }
 
 SAMPLE_DEBATE: dict[str, Any] = {
@@ -108,11 +114,11 @@ SAMPLE_DEBATE: dict[str, Any] = {
         {"round": 1, "encourager": _ENC_R1, "scrutinizer": _SCR_R1,
          "verdict": {"converged": False, "shared_issue": None}, "round_latency_seconds": 1.6},
         {"round": 2, "encourager": _ENC_R2, "scrutinizer": _SCR_R2,
-         "verdict": {"converged": True, "shared_issue": "과도한 전방 기울기"}, "round_latency_seconds": 1.2},
+         "verdict": {"converged": True, "shared_issue": "Excessive forward lean"}, "round_latency_seconds": 1.2},
     ],
     "converged": True,
     "converged_at_round": 2,
-    "shared_issue": "과도한 전방 기울기",
+    "shared_issue": "Excessive forward lean",
     "total_latency_seconds": 5.8,
     "forced_stop_reason": None,
 }
@@ -124,20 +130,23 @@ SAMPLE_DEBATE: dict[str, Any] = {
 
 SAMPLE_MEDIATOR: dict[str, Any] = {
     "agent": "mediator",
-    "consensus": "두 코너 모두 과도한 전방 기울기를 우선 과제로 봅니다. 요추 부상 이력을 고려해 "
-                 "Head Coach 는 신중 쪽에 섭니다 — 지금 교정하고 나서 점진적으로 올립니다.",
+    "consensus": "Both corners agree excessive forward lean is the priority. Given the lower-back "
+                 "injury history, the Head Coach sides with caution — correct it now, then build "
+                 "back gradually.",
     "priority_actions": [
-        {"order": 1, "action": "작업 중량 20–30% 감량",
-         "rationale": "재패턴 동안 요추 전단 부하를 줄입니다. Scrutinizer 의 판단을 Encourager 도 "
-                      "가장 빠른 복귀 경로로 동의."},
-        {"order": 2, "action": "가슴을 세우고 상체를 수직으로",
-         "rationale": "드라이브 구간 '가슴 펴기' 큐. Encourager 의 큐를 Scrutinizer 의 기전 분석이 검증."},
+        {"order": 1, "action": "Cut working load 20–30%",
+         "rationale": "Reduces lumbar shear load during re-patterning. The Encourager agrees with the "
+                      "Scrutinizer's call as the fastest path back."},
+        {"order": 2, "action": "Lift the chest, keep the torso vertical",
+         "rationale": "A 'chest up' cue through the drive. The Scrutinizer's mechanism analysis "
+                      "validates the Encourager's cue."},
     ],
     "past_debate_references": [
         {"debate_id": "e2e_demo_041", "date": "Apr 18, 2026",
-         "outcome": "같은 전방 기울기 플래그 — 요추 위험으로 기록. 해결됐다가 부하에서 재발."},
+         "outcome": "Same forward-lean flag — logged as a lumbar risk. Resolved, then recurred under load."},
     ],
-    "disclaimer": "정보 제공용입니다. 의학적 조언이 아닙니다. 통증이나 부상이 있으면 전문가와 상담하세요.",
+    "disclaimer": "Informational only. Not medical advice. "
+                  "If you feel pain or have an injury, consult a professional.",
     "round_count_used": 2,
 }
 
@@ -150,10 +159,10 @@ SAMPLE_PERSONA_BEFORE = {"harshness": 0.50, "caution": 0.40}
 SAMPLE_PERSONA_AFTER = {"harshness": 0.35, "caution": 0.55}
 
 SAMPLE_EVOLUTION_QUOTES = {
-    "before": "교과서적인 motor control 실패입니다. 당신의 요추는 감당할 이유가 없는 부하를 받고 있어요. "
-              "당장 중량 추가를 멈추세요.",
-    "after": "전방 기울기는 여전히 우선 과제예요 — 하지만 분명히 노력해 온 게 보입니다. 브레이스가 자리잡을 "
-             "때까지 중량은 가볍게 유지해요. 생각보다 가까워졌어요.",
+    "before": "A textbook motor-control failure. Your lumbar spine is taking load it has no reason "
+              "to carry. Stop adding weight right now.",
+    "after": "Forward lean is still the priority — but I can see you've been putting in the work. "
+             "Keep the load light until the brace locks in. You're closer than you think.",
 }
 SAMPLE_RESULT = {
     "form_before": 65, "form_after": 74,

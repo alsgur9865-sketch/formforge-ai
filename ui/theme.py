@@ -89,13 +89,20 @@ def page_shell_css() -> str:
   /* 기본 상단 헤더/툴바/푸터 숨김 */
   header[data-testid="stHeader"] {{ background:transparent; height:0; }}
   #MainMenu, footer, [data-testid="stToolbar"] {{ display:none; }}
+  /* 사이드바 접힘 시 '펼치기(›)' 버튼이 height:0 헤더에 가려지지 않도록 강제 노출 */
+  [data-testid="stSidebarCollapsedControl"],
+  [data-testid="collapsedControl"] {{ display:flex !important; visibility:visible !important;
+     position:fixed !important; top:8px; left:8px; z-index:100000; }}
   /* 메인 블록 패딩 최소화 + 확대된 캔버스 수용 (max-width 해제, 가로 스크롤 허용) */
   .block-container {{ padding:0.2rem 0.5rem 1rem; max-width:initial; }}
   section.main > div {{ padding-top:0; }}
   /* iframe(화면 캔버스) 중앙 정렬 — 좌우 여백 균등 레터박스 */
   .block-container iframe {{ display:block; margin:0 auto; }}
   /* 사이드바 톤을 디자인에 맞춤 */
-  section[data-testid="stSidebar"] {{ background:{ink2}; border-right:1px solid {line2}; }}
+  section[data-testid="stSidebar"] {{ background:{ink2}; border-right:1px solid {line2};
+     transform:none !important; visibility:visible !important; margin-left:0 !important;
+     min-width:248px !important; width:248px !important; overflow:visible !important; }}
+  section[data-testid="stSidebar"] > div {{ width:248px !important; }}
   section[data-testid="stSidebar"] * {{ color:{mid}; }}
   section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
   section[data-testid="stSidebar"] h3 {{ color:{gold}; font-family:'Saira Condensed',sans-serif;

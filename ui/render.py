@@ -24,13 +24,13 @@ _env = Environment(
     autoescape=select_autoescape(["html"]),
 )
 
-# 화면별 고정 캔버스 높이 (px) — st.components.v1.html(height=...) 에 사용
+# 화면별 고정 캔버스 높이 (px) — 새 디자인 핸드오프에서 전 화면 1440×900 (16:10) 통일.
 SCREEN_HEIGHTS: dict[str, int] = {
-    "upload": 920,
-    "debate": 1180,
-    "consensus": 880,
-    "feedback": 880,
-    "evolution": 920,
+    "upload": 900,
+    "debate": 900,
+    "consensus": 900,
+    "feedback": 900,
+    "evolution": 900,
     "trace": 900,
 }
 
@@ -242,7 +242,7 @@ def consensus_ctx(*, mediator: dict[str, Any], debate: dict[str, Any], pose: dic
             "id": prior_record_label,
             "date": ref.get("date", ""),
             "text": outcome,
-            "recurring": "Recurring · 2nd occurrence" if ("재발" in outcome or "recur" in outcome.lower()) else None,
+            "recurring": "Recurring · 2nd occurrence" if "recur" in outcome.lower() else None,
         }
 
     shared = debate.get("shared_issue") or "Primary risk"
