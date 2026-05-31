@@ -67,10 +67,22 @@ def _short(text: str | None, limit: int = 150) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def render_screen(screen: str, ctx: dict[str, Any]) -> str:
-    """템플릿 렌더 → HTML 문자열. ctx 에 _base() 가 자동 병합된다."""
+def render_screen(screen: str, ctx: dict[str, Any], zoom: float = 1.0) -> str:
+    """템플릿 렌더 → HTML 문자열. ctx 에 _base() 가 자동 병합된다.
+
+    zoom: 1440px 고정 캔버스를 비율 유지한 채 확대/축소(화면 채우기용).
+          body 에 transform:scale 을 주입 → iframe 폭/높이를 zoom 배율로 맞추면
+          디자인이 모니터 폭에 꽉 차고 빈 ink 여백이 사라진다.
+    """
     merged = {**_base(screen), **ctx}
-    return _env.get_template(f"{screen}.html").render(**merged)
+    html = _env.get_template(f"{screen}.html").render(**merged)
+    if zoom and abs(zoom - 1.0) > 1e-6:
+        html = html.replace(
+            "<body>",
+            f'<body style="transform:scale({zoom});transform-origin:top left">',
+            1,
+        )
+    return html
 
 
 # ---------------------------------------------------------------------------

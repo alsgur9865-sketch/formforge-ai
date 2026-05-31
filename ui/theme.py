@@ -89,11 +89,11 @@ def page_shell_css() -> str:
   /* 기본 상단 헤더/툴바/푸터 숨김 */
   header[data-testid="stHeader"] {{ background:transparent; height:0; }}
   #MainMenu, footer, [data-testid="stToolbar"] {{ display:none; }}
-  /* 메인 블록 패딩 제거 + 1440 캔버스 수용 (가로 스크롤 허용) */
-  .block-container {{ padding:0.6rem 0.5rem 1rem; max-width:1480px; }}
+  /* 메인 블록 패딩 최소화 + 확대된 캔버스 수용 (max-width 해제, 가로 스크롤 허용) */
+  .block-container {{ padding:0.2rem 0.5rem 1rem; max-width:initial; }}
   section.main > div {{ padding-top:0; }}
-  /* 컴포넌트 iframe 중앙 정렬 */
-  iframe[title="streamlit_component"], .stCustomComponentV1 {{ display:block; margin:0 auto; }}
+  /* iframe(화면 캔버스) 중앙 정렬 — 좌우 여백 균등 레터박스 */
+  .block-container iframe {{ display:block; margin:0 auto; }}
   /* 사이드바 톤을 디자인에 맞춤 */
   section[data-testid="stSidebar"] {{ background:{ink2}; border-right:1px solid {line2}; }}
   section[data-testid="stSidebar"] * {{ color:{mid}; }}

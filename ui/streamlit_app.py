@@ -101,6 +101,9 @@ with st.sidebar:
         if st.session_state.get("debate_id"):
             st.caption(f"debate_id · `{st.session_state['debate_id']}`")
     st.divider()
+    st.slider("🔍 화면 배율", 0.70, 1.60, 1.0, 0.05, key="zoom",
+              help="1440px 고정 디자인을 비율 유지한 채 확대/축소. 모니터가 넓으면 키워서 빈 여백을 채우세요.")
+    st.divider()
     st.caption("⚕ 정보 제공용 · 의학적 조언 아님")
 
 
@@ -116,13 +119,15 @@ def show(screen_name: str, ctx: dict) -> None:
     (2026-06-01 이후 제거) 대신, 문서를 base64 data: URI 로 인코딩해 `st.iframe`
     (data: URI 공식 지원)에 싣는다 — 미래 안전 + CSS 완전 격리.
     """
-    html = render.render_screen(screen_name, ctx)
-    height = render.SCREEN_HEIGHTS[screen_name]
+    zoom = float(st.session_state.get("zoom", 1.0))
+    html = render.render_screen(screen_name, ctx, zoom=zoom)
+    w = round(1440 * zoom)
+    h = round(render.SCREEN_HEIGHTS[screen_name] * zoom)
     try:
         b64 = base64.b64encode(html.encode("utf-8")).decode("ascii")
-        st.iframe(f"data:text/html;base64,{b64}", width=1440, height=height)
+        st.iframe(f"data:text/html;base64,{b64}", width=w, height=h)
     except Exception:  # noqa: BLE001 — 구버전 Streamlit 폴백
-        components.html(html, width=1440, height=height, scrolling=True)
+        components.html(html, width=w, height=h, scrolling=True)
 
 
 # ---------------------------------------------------------------------------
