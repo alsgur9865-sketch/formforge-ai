@@ -1,0 +1,70 @@
+# 파일 위치: deploy/cloudbuild.yaml
+# FormForge 메인앱(Streamlit) 빌드 + Cloud Run 배포 (Day 14 Task 14.3).
+#
+# Docker 로컬 설치 없이 Cloud Build 가 빌드한다.
+# 실행 (프로젝트 루트에서):
+#   gcloud builds submit --config deploy/cloudbuild.yaml .
+#
+# 선행 (1회) — Artifact Registry repo (mcp 배포에서 이미 만들었으면 생략):
+#   gcloud artifacts repositories create formforge \
+#       --repository-format=docker --location=us-central1
+#
+# 시크릿(PHOENIX_API_KEY)은 여기 두지 않는다. 배포 후 1회:
+#   gcloud run services update formforge-app --region us-central1 \
+#       --update-secrets=PHOENIX_API_KEY=phoenix-api-key:latest
+#
+# 인증: Cloud Run 기본 SA 대신 권한이 갖춰진 formforge-sa 로 실행하려면 배포 인자에
+#   --service-account=formforge-sa@$PROJECT_ID.iam.gserviceaccount.com 추가.
+
+substitutions:
+  _SERVICE: formforge-app
+  _REGION: us-central1
+  _REPO: formforge
+
+steps:
+  # 1) 이미지 빌드 — 빌드 컨텍스트는 루트(.), Dockerfile 은 deploy/Dockerfile
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - deploy/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+      - .
+
+  # 2) Artifact Registry 푸시
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}
+
+  # 3) Cloud Run 배포 — 데모 공개 URL(allow-unauthenticated).
+  #    mediapipe/opencv + 113s 파이프라인 대비 메모리/타임아웃 상향.
+  #    min-instances=1 + session-affinity: streamlit websocket 세션 안정.
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=4Gi
+      - --cpu=2
+      - --timeout=600
+      - --min-instances=1
+      - --session-affinity
+      - --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,VERTEX_AI_LOCATION=us-central1,PHOENIX_PROJECT_NAME=formforge-prod,PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com,FIRESTORE_DATABASE=(default)
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

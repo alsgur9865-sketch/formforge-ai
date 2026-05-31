@@ -24,6 +24,9 @@ service-account.json
 *.md
 docs/
 
-# MediaPipe 모델 바이너리 (MCP 빌드엔 불필요)
+# MediaPipe 모델 바이너리 (메인앱은 빌드 시 curl 다운로드, MCP 빌드엔 불필요)
 data/models/
 *.task
+
+# 샘플/업로드 영상 (빌드 컨텍스트 경량 — 런타임에 사용자가 업로드)
+data/sample_videos/
