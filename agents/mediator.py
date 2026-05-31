@@ -347,8 +347,10 @@ def create_mediator_agent_with_mcp() -> tuple[Agent, Any]:
     - mcp/phoenix_mcp_server.py 를 stdio subprocess 로 띄워 MCPToolset 으로 연결.
     - Gemini 가 query_past_debates / query_similar_safety_flags 를 자동 호출.
 
-    ⚠️ MCP 관련 import 는 함수 내부에서 (lazy). 모듈 최상단에 두면
-       프로젝트의 mcp/ 폴더가 PyPI mcp 패키지를 shadow 해 cwd=루트에서 import 가 깨진다.
+    ⚠️ 프로젝트 mcp/ 폴더가 PyPI mcp 패키지를 shadow 하는 함정.
+       lazy import(함수 내부)만으론 부족하다 — 호출 시점 sys.path 앞쪽/cwd 가 루트면
+       여전히 깨진다. 아래에서 import 직전에 sys.path/모듈캐시의 루트를 잠시 제거해
+       PyPI mcp 를 보장한다 (UI/스레드/Cloud Run 어느 컨텍스트에서도 P4 가 살아있게).
 
     Returns:
         (agent, toolset). 호출자는 사용 후 `await toolset.close()` 로 정리.
@@ -356,10 +358,26 @@ def create_mediator_agent_with_mcp() -> tuple[Agent, Any]:
     import sys
     from pathlib import Path
 
-    from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
-    from mcp import StdioServerParameters
-
     project_root = Path(__file__).resolve().parent.parent
+    _root_str = str(project_root)
+
+    # 🛡️ 프로젝트 mcp/ 폴더가 PyPI mcp 패키지를 shadow 하지 못하게 보장.
+    #   lazy import(함수 내부)만으론 부족 — 호출 시점에 sys.path 앞쪽이나 cwd 가
+    #   루트면(스레드/streamlit/cwd=루트) 여전히 프로젝트 mcp/ 를 잡아 P4 가 죽는다.
+    #   → import 직전에 sys.path 의 루트/'' 항목을 빼고, 잘못 캐시된 mcp 를 비운 뒤
+    #     PyPI mcp 를 잡게 한다. import 후 sys.path 원복(다른 코드 영향 0).
+    _saved_path = sys.path[:]
+    sys.path[:] = [p for p in sys.path if p not in ("", ".", _root_str)]
+    _cached = sys.modules.get("mcp")
+    if _cached is not None and _root_str in str(getattr(_cached, "__file__", "") or ""):
+        for _name in [k for k in list(sys.modules) if k == "mcp" or k.startswith("mcp.")]:
+            del sys.modules[_name]
+    try:
+        from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
+        from mcp import StdioServerParameters
+    finally:
+        sys.path[:] = _saved_path
+
     server_script = project_root / "mcp" / "phoenix_mcp_server.py"
 
     toolset = MCPToolset(
