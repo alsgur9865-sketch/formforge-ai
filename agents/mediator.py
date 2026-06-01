@@ -385,8 +385,16 @@ def create_mediator_agent_with_mcp() -> tuple[Agent, Any]:
             server_params=StdioServerParameters(
                 command=sys.executable,  # 현재 venv 의 python
                 args=[str(server_script)],
-                # stdio 모드로 뜨도록 (기본 stdio지만 명시)
-                env={**os.environ, "PHOENIX_MCP_TRANSPORT": "stdio"},
+                # stdio 모드로 뜨도록 + PYTHONPATH 제거(필수 — Cloud Run shadow 회피):
+                #   Dockerfile 의 ENV PYTHONPATH=/app 이 subprocess 로 전달되면, 서버의
+                #   `from fastmcp import FastMCP`(→ import mcp.types)가 /app/mcp/(우리 폴더)를
+                #   PyPI mcp 로 shadow → ModuleNotFoundError 로 MCP(P4)가 죽는다(Cloud Run 재현).
+                #   PYTHONPATH 를 빼면 fastmcp 는 site-packages mcp 를 잡고, 서버 스크립트는
+                #   자기 파일 기준으로 루트를 sys.path 에 직접 추가하므로 storage import 도 정상.
+                env={
+                    **{_k: _v for _k, _v in os.environ.items() if _k != "PYTHONPATH"},
+                    "PHOENIX_MCP_TRANSPORT": "stdio",
+                },
             ),
         ),
         tool_filter=["query_past_debates", "query_similar_safety_flags"],

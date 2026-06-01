@@ -47,7 +47,7 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor  # no
 tracer_provider = register(
     project_name=PHOENIX_PROJECT,
     endpoint=PHOENIX_ENDPOINT.rstrip("/") + "/v1/traces",
-    headers={"api_key": PHOENIX_API_KEY},
+    headers={"authorization": f"Bearer {PHOENIX_API_KEY}"},
 )
 GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 

@@ -1,0 +1,43 @@
+# gcloud builds submit 업로드 컨텍스트에서 제외 (GCS 스테이징 버킷으로 올라갈 파일 결정).
+# .dockerignore 는 Cloud Build VM 의 docker build 단계에만 적용되고,
+# 업로드 단계엔 이 파일(.gcloudignore)이 적용된다 → 시크릿·대용량은 여기서 막아야 한다.
+# (이 파일이 없으면 gcloud 는 .gitignore 를 자동 차용하지만, 의도를 명시해 둔다.)
+
+# 가상환경 (수백 MB — 절대 업로드 금지)
+venv/
+.venv/
+env/
+
+# 파이썬 캐시
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 시크릿 (보안 — GCS 스테이징 버킷 유입 차단)
+.env
+.env.*
+!.env.example
+service-account.json
+*.json.key
+secrets/
+
+# VCS / 에디터 / 문서 (빌드에 불필요)
+.git/
+.gitignore
+.claude/
+.vscode/
+.idea/
+*.md
+docs/
+
+# MediaPipe 모델 바이너리 (메인앱은 빌드 시 curl 다운로드)
+data/models/
+*.task
+
+# 샘플/업로드 영상 (런타임에 사용자가 업로드)
+data/sample_videos/
+*.mp4
+*.mov
+*.avi

@@ -62,7 +62,7 @@ def _ensure_phoenix_registered() -> bool:
         register(
             project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
             endpoint=endpoint,
-            headers={"api_key": api_key},
+            headers={"authorization": f"Bearer {api_key}"},
         )
         _PHOENIX_REGISTERED = True
         return True

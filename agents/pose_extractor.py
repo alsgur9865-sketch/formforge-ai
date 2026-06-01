@@ -483,9 +483,16 @@ def _register_phoenix() -> None:
     """선택: Phoenix register 후 OTel span 이 Phoenix Cloud 로 송출되게 (P1)."""
     try:
         from phoenix.otel import register
+        api_key = os.getenv("PHOENIX_API_KEY")
+        endpoint = (
+            os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com")
+            .rstrip("/")
+            + "/v1/traces"
+        )
         register(
             project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
-            endpoint=os.getenv("PHOENIX_COLLECTOR_ENDPOINT"),
+            endpoint=endpoint,
+            headers={"authorization": f"Bearer {api_key}"} if api_key else None,
             auto_instrument=False,
         )
     except Exception as e:  # noqa: BLE001 — 관측성은 fail-soft

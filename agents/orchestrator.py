@@ -360,7 +360,7 @@ def _ensure_phoenix_registered() -> bool:
         tracer_provider = register(
             project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
             endpoint=endpoint,
-            headers={"api_key": api_key},
+            headers={"authorization": f"Bearer {api_key}"},
         )
         GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
         _PHOENIX_REGISTERED = True

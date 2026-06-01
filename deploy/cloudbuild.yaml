@@ -20,6 +20,9 @@ substitutions:
   _SERVICE: formforge-app
   _REGION: us-central1
   _REPO: formforge
+  # 수동 빌드(gcloud builds submit)에선 빌트인 $SHORT_SHA 가 빈 문자열이라 태그가 깨진다.
+  # 직접 정의한 _TAG 로 고정(재배포 시 --substitutions=_TAG=v2 로 버전 구분 가능).
+  _TAG: v1
 
 steps:
   # 1) 이미지 빌드 — 빌드 컨텍스트는 루트(.), Dockerfile 은 deploy/Dockerfile
@@ -29,7 +32,7 @@ steps:
       - -f
       - deploy/Dockerfile
       - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:${_TAG}
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
       - .
@@ -50,7 +53,7 @@ steps:
       - run
       - deploy
       - ${_SERVICE}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:${_TAG}
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated
@@ -59,10 +62,10 @@ steps:
       - --timeout=600
       - --min-instances=1
       - --session-affinity
-      - --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,VERTEX_AI_LOCATION=us-central1,PHOENIX_PROJECT_NAME=formforge-prod,PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com,FIRESTORE_DATABASE=(default)
+      - --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,VERTEX_AI_LOCATION=us-central1,PHOENIX_PROJECT_NAME=formforge-prod,PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/s/alsgur9865,FIRESTORE_DATABASE=(default)
 
 images:
-  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:${_TAG}
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
 
 options:

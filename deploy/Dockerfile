@@ -21,9 +21,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# 1) 시스템 의존성 — opencv/mediapipe 런타임(libGL), 모델 다운로드용 curl
+# 1) 시스템 의존성 — opencv/mediapipe 런타임(libGL·libGLESv2·libEGL), 모델 다운로드용 curl
+#    mediapipe Tasks(vision) 가 OpenGL ES(libGLESv2.so.2)+EGL(libEGL.so.1) 를 dlopen 하므로
+#    libgl1 만으론 부족 → libgles2·libegl1 추가 (없으면 Live 분석에서 OSError: libGLESv2.so.2).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgl1 libglib2.0-0 curl \
+        libgl1 libglib2.0-0 libgles2 libegl1 curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 2) 파이썬 의존성 먼저 (레이어 캐시 — 코드만 바뀌면 재설치 안 함)

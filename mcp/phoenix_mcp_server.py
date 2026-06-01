@@ -72,16 +72,22 @@ _PHOENIX_READY = False
 try:
     _api_key = os.getenv("PHOENIX_API_KEY")
     if _api_key:
+        import contextlib
+        import io as _io
+
         from phoenix.otel import register  # noqa: E402
 
         _endpoint = os.getenv(
             "PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com"
         )
-        register(
-            project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
-            endpoint=_endpoint.rstrip("/") + "/v1/traces",
-            headers={"api_key": _api_key},
-        )
+        # ⚠️ register() 는 stdout 에 "OpenTelemetry Tracing Details" 박스를 출력 →
+        #    stdio MCP 서버의 JSON-RPC 채널(stdout) 오염 → P4 깨짐. stdout 을 버린다.
+        with contextlib.redirect_stdout(_io.StringIO()):
+            register(
+                project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
+                endpoint=_endpoint.rstrip("/") + "/v1/traces",
+                headers={"authorization": f"Bearer {_api_key}"},
+            )
         _PHOENIX_READY = True
         _log("Phoenix 계측 등록 완료 — tool 호출이 Phoenix Cloud 에 기록됩니다.")
     else:
