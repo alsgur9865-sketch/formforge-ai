@@ -96,8 +96,8 @@
       <div class="drop {{ 'has' if video_name }}">
         <div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 16V4M12 4l-5 5M12 4l5 5" stroke="#E2672E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" stroke="#E2672E" stroke-width="1.8" stroke-linecap="round"/></svg></div>
         <div class="t">{{ video_name or 'Drop your workout video' }}</div>
-        <div class="s">{% if video_name %}✓ Video ready — hit “Send to the corners” in the left panel{% else %}MP4 / MOV · a side angle reads form best{% endif %}</div>
-        <span class="sample">{{ 'Swap the video from the sidebar uploader' if video_name else 'or watch a sample bout →' }}</span>
+        <div class="s">{% if video_name %}✓ Video ready — set options, then hit “Send” in the panel below ↓{% else %}MP4 / MOV · a side angle reads form best{% endif %}</div>
+        <span class="sample">{{ 'Swap or re-upload in the panel below ↓' if video_name else 'or watch a sample bout →' }}</span>
       </div>
 
       <div>
@@ -113,7 +113,7 @@
         <div class="fl">Medical corner notes <span class="opt">· optional, but the corners will use it</span></div>
         <div class="notes">
           {% for f in injury_flags %}<span class="chip">{{ f }} <span class="x">✕</span></span>{% endfor %}
-          <span class="ph">{{ '' if injury_flags else 'Add an injury or limitation (sidebar)…' }}</span>
+          <span class="ph">{{ '' if injury_flags else 'Add an injury or limitation in the panel below…' }}</span>
         </div>
       </div>
 

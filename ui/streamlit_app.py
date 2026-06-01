@@ -79,6 +79,12 @@ SCREENS = {
     "◷  Phoenix Trace": "trace",
 }
 
+# Weigh-In 커스텀 컴포넌트 — upload.html 디자인 100% 보존 + 실제 드래그앤드롭/선택/Send.
+# (빌드 불필요: ui/components/upload_component/index.html 이 Streamlit 통신 프로토콜을 직접 구현)
+_upload_component = components.declare_component(
+    "formforge_weighin", path=str(_ROOT / "ui" / "components" / "upload_component"),
+)
+
 
 # ---------------------------------------------------------------------------
 # 사이드바
@@ -100,9 +106,11 @@ with st.sidebar:
         st.text_input("user_id", value="user_001", key="user_id")
         if st.session_state.get("debate_id"):
             st.caption(f"debate_id · `{st.session_state['debate_id']}`")
-    st.divider()
-    st.slider("🔍 Zoom", 0.70, 1.60, 1.0, 0.05, key="zoom",
-              help="Scale the fixed 1440px design up/down at a constant ratio. On a wide monitor, increase it to fill the empty margins.")
+    # Zoom 은 고정폭(1440px) iframe 결과화면 전용 — 네이티브 Upload 화면에선 숨김
+    if screen != "upload":
+        st.divider()
+        st.slider("🔍 Zoom", 0.70, 1.60, 1.0, 0.05, key="zoom",
+                  help="Scale the fixed 1440px design up/down at a constant ratio. On a wide monitor, increase it to fill the empty margins.")
     st.divider()
     st.caption("⚕ For information only · not medical advice")
 
@@ -203,41 +211,32 @@ def _live_or_demo() -> tuple[dict, dict, dict]:
 # ===========================================================================
 
 if screen == "upload":
-    ctx = render.upload_ctx(
-        exercise_type=st.session_state["exercise"],
-        injury_flags=st.session_state["injuries"],
-        video_name=st.session_state["video_name"],
+    # Weigh-In — 커스텀 컴포넌트(upload.html 디자인 100% + 실제 드래그앤드롭/선택/Send).
+    # 컴포넌트가 Send 시 {nonce, fileName, fileB64, exercise, injuries} 를 반환한다.
+    val = _upload_component(
+        exercise=st.session_state["exercise"],
+        injuries=st.session_state["injuries"],
+        default=None, key="weighin",
     )
-    show("upload", ctx)
-
-    with st.container():
-        st.markdown("##### 🎬 Weigh-In — actual input (controls)")
-        c1, c2 = st.columns([1.4, 1])
-        with c1:
-            up = st.file_uploader("Workout video (MP4 / MOV · side angle recommended)", type=["mp4", "mov", "avi", "webm"])
-            if up is not None:
-                tmp = _ROOT / "data" / "sample_videos" / f"_ui_upload_{up.name}"
-                tmp.parent.mkdir(parents=True, exist_ok=True)
-                tmp.write_bytes(up.getbuffer())
-                st.session_state["video_name"] = up.name
-                st.session_state["video_path"] = str(tmp)
-        with c2:
-            st.session_state["exercise"] = st.radio(
-                "Weight class", ["squat", "deadlift", "pushup"],
-                index=["squat", "deadlift", "pushup"].index(st.session_state["exercise"]),
-            )
-        inj = st.text_input("Injuries / limitations (comma-separated)", value=", ".join(st.session_state["injuries"]))
-        st.session_state["injuries"] = [s.strip() for s in inj.split(",") if s.strip()]
-
-        b1, b2 = st.columns([1, 3])
-        with b1:
-            if st.button("Send to the corners →", type="primary", use_container_width=True):
-                if IS_LIVE and st.session_state.get("video_path"):
-                    _run_live_analysis(st.session_state["video_path"])
-                elif IS_LIVE:
-                    st.warning("Live mode: upload a video first.")
-                else:
-                    st.success("Demo mode — go to the 'Live Debate' screen on the left to watch the debate. 🥊")
+    if isinstance(val, dict) and val.get("nonce") != st.session_state.get("_weighin_nonce"):
+        st.session_state["_weighin_nonce"] = val["nonce"]
+        st.session_state["exercise"] = val.get("exercise") or st.session_state["exercise"]
+        st.session_state["injuries"] = val.get("injuries") or []
+        if val.get("sample"):
+            st.success("Demo mode — open the 'Live Debate' screen on the left to watch the debate. 🥊")
+        elif val.get("fileB64"):
+            import base64 as _b64
+            raw = val["fileB64"].split(",", 1)[-1]
+            tmp = _ROOT / "data" / "sample_videos" / f"_ui_upload_{val.get('fileName', 'clip.mp4')}"
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_bytes(_b64.b64decode(raw))
+            st.session_state["video_name"] = val.get("fileName")
+            st.session_state["video_path"] = str(tmp)
+            if IS_LIVE:
+                _run_live_analysis(str(tmp))
+            else:
+                st.success("Video received — switch DATA SOURCE to 'Live' (sidebar) to analyze, "
+                           "or open 'Live Debate' for the demo. 🥊")
 
 elif screen == "debate":
     if IS_LIVE and st_autorefresh is not None and st.session_state.get("debate_id"):
