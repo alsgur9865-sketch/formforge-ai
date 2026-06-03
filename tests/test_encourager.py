@@ -34,7 +34,7 @@ from phoenix.otel import register  # noqa: E402
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor  # noqa: E402
 
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY")
-PHOENIX_ENDPOINT = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com")
+PHOENIX_ENDPOINT = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com/s/alsgur9865")
 PHOENIX_PROJECT = os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod")
 if not PHOENIX_API_KEY:
     print("❌ .env 의 PHOENIX_API_KEY 가 비어 있습니다.", file=sys.stderr)
@@ -43,7 +43,7 @@ if not PHOENIX_API_KEY:
 tracer_provider = register(
     project_name=PHOENIX_PROJECT,
     endpoint=PHOENIX_ENDPOINT.rstrip("/") + "/v1/traces",
-    headers={"api_key": PHOENIX_API_KEY},
+    headers={"authorization": f"Bearer {PHOENIX_API_KEY}"},
 )
 GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 
