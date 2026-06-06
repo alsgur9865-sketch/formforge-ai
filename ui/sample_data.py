@@ -4,6 +4,8 @@
 실제 Firestore `debates/{id}` 스키마와 필드명을 1:1로 맞춤 (firestore_client / mediator /
 pose_extractor 출력 구조). UI 컴포넌트 렌더 검증·디자인 이터레이션용. 프로덕션 플로우에는
 관여하지 않음 (streamlit_app.py에서 ?demo=1 일 때만 사용).
+
+표시 콘텐츠는 영어(영어권 심사 대상). 백엔드 Gemini 페르소나는 별도(agents/)이며 한국어 유지.
 """
 from __future__ import annotations
 
@@ -42,13 +44,13 @@ def sample_debate() -> dict[str, Any]:
             },
             "safety_flags": [
                 {"severity": "medium", "issue": "knee_valgus_left", "rep_numbers": [1, 3],
-                 "rationale": "하강 시 왼쪽 무릎이 안쪽으로 무너지는 패턴 — 부하 하 ACL 스트레스 벡터."},
+                 "rationale": "Left knee caves inward on the descent — an ACL stress vector under load."},
                 {"severity": "low", "issue": "fast_eccentric", "rep_numbers": [1, 2, 3],
-                 "rationale": "이심성(하강) 구간이 1.2초로 빠른 편 — 통제력 저하 신호."},
+                 "rationale": "The eccentric (descent) runs fast at 1.2s — a sign of reduced control."},
             ],
-            "reasoning": "전반적으로 깊이는 안정적이고 일관적입니다. 다만 왼쪽 무릎 외반과 빠른 하강이 반복적으로 관찰됩니다.",
+            "reasoning": "Depth is stable and consistent overall. That said, left-knee valgus and a fast descent show up repeatedly.",
             "warnings": [],
-            "disclaimer": "이 분석은 정보 제공용입니다. 의학 조언이 아닙니다.",
+            "disclaimer": "This analysis is for informational purposes only. Not medical advice.",
             "_metadata": {"stage2_model": "gemini-2.5-flash", "keyframes_sent": 6, "stage2_latency_sec": 4.2},
             # NOTE: keyframe_urls 는 §8 백엔드 작업 전까지 없음 → 뷰어는 placeholder/영상으로 fallback
         },
@@ -58,9 +60,9 @@ def sample_debate() -> dict[str, Any]:
                 "round_latency_seconds": 26.0,
                 "encourager": {
                     "agent": "encourager", "round": 1,
-                    "praise": "패러렐 깊이를 일관되게 찍고 있어요 — 대부분의 리프터가 어려워하는 부분이에요.",
-                    "concern_one": "하강 때 코어를 반 박자 일찍 잠그면 더 안정적일 거예요.",
-                    "actionable_tip": "무릎을 발끝 밖으로 미는 큐 하나만 의식해보세요.",
+                    "praise": "You're hitting parallel depth consistently — that's the part most lifters struggle with.",
+                    "concern_one": "Brace your core half a beat earlier on the way down and it'll feel even more solid.",
+                    "actionable_tip": "Hold just one cue: push your knees out over your toes.",
                     "tone_metadata": {"warmth": 0.7, "detail": 0.6},
                     "addresses_scrutinizer": None,
                 },
@@ -68,60 +70,60 @@ def sample_debate() -> dict[str, Any]:
                     "agent": "scrutinizer", "round": 1,
                     "primary_risk": {
                         "name": "knee_valgus_left", "severity": "medium-high",
-                        "mechanism": "부하 하 무릎 외반은 ACL·내측 인대에 전단 응력을 가함.",
-                        "evidence_in_data": "rep 1·3에서 valgus_mild, safety_flag medium.",
-                        "threshold_breach": "반복적 외반 + 빠른 이심성 동반.",
+                        "mechanism": "Under load, knee valgus puts shear stress on the ACL and the medial ligaments.",
+                        "evidence_in_data": "valgus_mild on reps 1 and 3, safety_flag medium.",
+                        "threshold_breach": "Repeated valgus paired with a fast eccentric.",
                     },
                     "secondary_concerns": [
-                        {"name": "fast_eccentric", "severity": "low", "note": "하강 1.2s — 통제력 저하."},
+                        {"name": "fast_eccentric", "severity": "low", "note": "1.2s descent — control is slipping."},
                     ],
-                    "required_action": "증량 전에 무릎 트래킹부터 교정. '괜찮은' 수준이 아님.",
+                    "required_action": "Fix knee tracking before adding load. This is not 'fine'.",
                     "tone_metadata": {"harshness": 0.7, "detail": 0.8},
                     "addresses_encourager": None,
                 },
                 "verdict": {"converged": False, "shared_issue": "knee_valgus_left",
-                            "reason": "깊이엔 합의, 무릎 처리 강도에서 이견."},
+                            "reason": "Agreement on depth; disagreement on how hard to push the knee issue."},
             },
             {
                 "round": 2,
                 "round_latency_seconds": 22.0,
                 "encourager": {
                     "agent": "encourager", "round": 2,
-                    "praise": "무릎은 분명 짚고 가야죠 — 동의해요.",
-                    "concern_one": "다만 겁주기보다 큐 하나로 잡는 게 동기 유지에 나아요.",
-                    "actionable_tip": "발끝 밖으로 무릎 밀기 + 하강을 2초로.",
+                    "praise": "The knee absolutely needs addressing — agreed.",
+                    "concern_one": "But one clean cue keeps motivation up better than scaring them off.",
+                    "actionable_tip": "Knees out over the toes, and slow the descent to 2 seconds.",
                     "tone_metadata": {"warmth": 0.66, "detail": 0.62},
-                    "addresses_scrutinizer": "위험은 인정하되 코칭 톤은 유지하자.",
+                    "addresses_scrutinizer": "Acknowledge the risk, but keep the coaching tone.",
                 },
                 "scrutinizer": {
                     "agent": "scrutinizer", "round": 2,
                     "primary_risk": {
                         "name": "knee_valgus_left", "severity": "medium",
-                        "mechanism": "큐로 교정 안 되면 증량 중단이 원칙.",
-                        "evidence_in_data": "rep 5에서 neutral로 개선 — 교정 가능성 있음.",
-                        "threshold_breach": "단, 부하·피로 시 재발 위험.",
+                        "mechanism": "If a cue doesn't fix it, the rule is no more load.",
+                        "evidence_in_data": "rep 5 improved to neutral — it's correctable.",
+                        "threshold_breach": "But it can return under load or fatigue.",
                     },
                     "secondary_concerns": [],
-                    "required_action": "큐로 즉시 교정되는지 확인 후에만 증량 허용.",
+                    "required_action": "Allow more load only once the cue corrects it on the spot.",
                     "tone_metadata": {"harshness": 0.62, "detail": 0.78},
-                    "addresses_encourager": "톤은 양보, 증량 게이트는 유지.",
+                    "addresses_encourager": "Conceding on tone, holding the line on the load gate.",
                 },
                 "verdict": {"converged": True, "shared_issue": "knee_valgus_left",
-                            "reason": "무릎 우선 교정 + 큐 기반 접근에 합의."},
+                            "reason": "Consensus: fix the knee first, via a cue-based approach."},
             },
         ],
         "consensus": {
             "agent": "mediator",
-            "consensus": "좋은 스쿼트, 우선순위 수정 하나. 깊이는 합격이니 이제 무릎을 잡읍시다 — 발끝 밖으로 밀고 하강을 2초로. 증량은 무릎 트래킹을 잡은 뒤에.",
+            "consensus": "Solid squat — one priority fix. Depth passes, so let's lock down the knee: push it out over the toes and slow the descent to 2 seconds. Add load only after the knee tracking holds.",
             "priority_actions": [
-                {"order": 1, "action": "무릎을 발끝 라인 밖으로 트래킹", "rationale": "왼쪽 무릎 외반 = ACL 스트레스 감소."},
-                {"order": 2, "action": "이심성(하강) 1.2s → 2.0s", "rationale": "통제력 확보로 외반 재발 방지."},
-                {"order": 3, "action": "다음 세트 측면 재촬영", "rationale": "교정 여부를 데이터로 확인."},
+                {"order": 1, "action": "Track the knee out past the toe line", "rationale": "Less left-knee valgus means less ACL stress."},
+                {"order": 2, "action": "Eccentric (descent) 1.2s → 2.0s", "rationale": "Control keeps the valgus from returning."},
+                {"order": 3, "action": "Re-film from the side on the next set", "rationale": "Confirm the fix with data."},
             ],
             "past_debate_references": [
-                {"debate_id": "demo-squat-feb", "date": "2026-02-14", "outcome": "knee_valgus 주의 기록"},
+                {"debate_id": "demo-squat-feb", "date": "2026-02-14", "outcome": "logged a knee_valgus caution"},
             ],
-            "disclaimer": "이 분석은 정보 제공용입니다. 의학 조언이 아닙니다. 운동 중 통증·부상·지속적 불편이 있으면 운동을 중단하고 자격 있는 의료·피트니스 전문가와 상담하세요.",
+            "disclaimer": "This analysis is for informational purposes only. Not medical advice. If you feel pain, injury, or persistent discomfort during exercise, stop and consult a qualified medical or fitness professional.",
             "round_count_used": 2,
         },
     }

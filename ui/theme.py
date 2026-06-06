@@ -61,7 +61,7 @@ html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
 
 /* ---- diagnostic viewer (hero) ---- */
 .ff-viewer{background:var(--vbg);border:1px solid #1d2530;border-radius:12px;position:relative;overflow:hidden;padding:0}
-.ff-viewer video,.ff-viewer img{display:block;width:100%;height:auto;background:#05070b}
+.ff-viewer video,.ff-viewer img{display:block;width:100%;height:auto;max-height:500px;object-fit:contain;background:#05070b}
 .ff-viewer .vchrome{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;font-family:'Geist Mono';font-size:10.5px;pointer-events:none;z-index:2}
 .ff-viewer .vchrome .l{color:#7a8597;letter-spacing:.06em}
 .ff-viewer .vchrome .r{color:var(--risk);display:flex;align-items:center;gap:6px}

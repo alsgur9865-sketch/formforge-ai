@@ -58,7 +58,7 @@ def trace_strip(
         base = phoenix_base.rstrip("/")
         proj = project_name or "default"
         url = f"{base}/projects/{_esc(proj)}/traces/{_esc(trace_id)}"
-        link = f'<a class="ff-tracelink" href="{url}" target="_blank">↗ Phoenix에서 전체 trace 보기 · {_esc(trace_id[:12])}…</a>'
+        link = f'<a class="ff-tracelink" href="{url}" target="_blank">↗ View full trace in Phoenix · {_esc(trace_id[:12])}…</a>'
     elif trace_id:
         link = f'<div class="ff-mono" style="font-size:10.5px;color:var(--faint);margin-top:8px">trace {_esc(trace_id[:16])}… · Phoenix auto-instrumented</div>'
 

@@ -80,19 +80,19 @@ def screen_upload() -> None:
     _header()
     st.markdown(
         '<div class="ff-h1">The argument happens<br>on your body<span class="g">.</span></div>'
-        '<div class="ff-lede">운동 영상을 올리면 두 AI 코치가 당신의 폼을 두고 실시간으로 토론하고, '
-        'Head Coach가 하나의 판결로 정리합니다.</div>',
+        '<div class="ff-lede">Upload a workout clip and two AI coaches debate your form in real time — '
+        'then a Head Coach settles it into a single verdict.</div>',
         unsafe_allow_html=True,
     )
     st.write("")
     col, side = st.columns([1.4, 1])
     with col:
-        file = st.file_uploader("운동 영상", type=["mp4", "mov", "avi", "mkv", "webm"])
-        exercise = st.selectbox("운동 종류", EXERCISES, format_func=str.title)
-        injuries = st.text_input("부상 이력 (선택)", placeholder="예: 작년 왼쪽 무릎 통증")
-        experience = st.selectbox("경험 수준", ["beginner", "intermediate", "advanced"], index=1)
-        start = st.button("⚡ 분석 시작 — 두 코치 소환", type="primary", disabled=file is None)
-        demo = st.button("샘플 데이터로 미리보기 (클라우드 불필요)")
+        file = st.file_uploader("Workout video", type=["mp4", "mov", "avi", "mkv", "webm"])
+        exercise = st.selectbox("Exercise", EXERCISES, format_func=str.title)
+        injuries = st.text_input("Injury history (optional)", placeholder="e.g. left knee pain last year")
+        experience = st.selectbox("Experience level", ["beginner", "intermediate", "advanced"], index=1)
+        start = st.button("⚡ Start analysis — summon both coaches", type="primary", disabled=file is None)
+        demo = st.button("Preview with sample data (no cloud needed)")
 
     if demo:
         st.session_state["demo"] = True
@@ -108,14 +108,14 @@ def _trigger(file: Any, exercise: str, injuries: str, experience: str) -> None:
     try:
         from storage.cloud_storage_client import upload_video_stream
         from storage.firestore_client import create_debate, create_user, get_user
-        with st.spinner("영상 업로드 중…"):
+        with st.spinner("Uploading video…"):
             video_uri = upload_video_stream(file, file.name, debate_id=debate_id)
             if get_user(user_id) is None:
                 create_user(user_id, {"experience_level": experience})
             create_debate(debate_id, user_id, video_uri, exercise)
     except Exception as exc:  # noqa: BLE001
-        st.error(f"시작 실패: {type(exc).__name__}: {exc}\n\n.env / service-account.json / GCP 자격증명을 확인하세요. "
-                 "클라우드 없이 화면만 보려면 ‘샘플 데이터로 미리보기’를 쓰세요.")
+        st.error(f"Couldn't start: {type(exc).__name__}: {exc}\n\nCheck .env / service-account.json / GCP credentials. "
+                 "To preview the UI without the cloud, use ‘Preview with sample data’.")
         return
 
     user_context = {"user_id": user_id, "injury_history": injuries or "", "experience_level": experience}
@@ -136,6 +136,16 @@ def _signed_video(debate: dict[str, Any]) -> str | None:
         return None
 
 
+@st.cache_data(show_spinner=False)
+def _demo_video_uri() -> str | None:
+    """데모 영웅용: 샘플 squat 영상을 base64 data URI로 인라인 (1회 인코딩 후 캐시)."""
+    import base64
+    p = Path(__file__).resolve().parent.parent / "data" / "sample_videos" / "squat_demo.mp4"
+    if not p.exists():
+        return None
+    return "data:video/mp4;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
+
+
 def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     _header()
     status = debate.get("status", "pending")
@@ -147,14 +157,14 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
 
     err = _PIPELINE_ERRORS.get(debate.get("debate_id", ""))
     if err:
-        st.error(f"분석 파이프라인 오류: {err}")
+        st.error(f"Analysis pipeline error: {err}")
 
     st.markdown(dv.tale_of_the_tape(debate), unsafe_allow_html=True)
 
     left, right = st.columns([1.05, 0.95])
     with left:
-        video_url = None if demo else _signed_video(debate)
-        st.markdown(dv.viewer_html(debate.get("pose_data"), video_url), unsafe_allow_html=True)
+        video_url = _demo_video_uri() if demo else _signed_video(debate)
+        st.markdown(dv.viewer_html(debate.get("pose_data"), video_url, autoplay=demo), unsafe_allow_html=True)
         st.markdown(dv.readout_html(debate.get("pose_data")), unsafe_allow_html=True)
     with right:
         st.markdown(dv.debate_feed(debate), unsafe_allow_html=True)
@@ -175,7 +185,7 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     if status in DONE or demo:
         st.write("")
         if st.session_state.get("fb_done"):
-            st.success("피드백 반영됨 — 두 코치가 당신에 맞춰 한 발 진화했습니다.")
+            st.success("Feedback applied — both coaches evolved a step toward you.")
             ps = fb.persona_drift_html(st.session_state.get("persona_after"))
             if ps:
                 st.markdown(ps, unsafe_allow_html=True)
@@ -185,7 +195,7 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
                 _submit_feedback(debate, result, demo=demo)
 
     st.write("")
-    if st.button("↺ 처음으로"):
+    if st.button("↺ Start over"):
         for k in ("debate_id", "demo", "fb_done", "persona_after"):
             st.session_state.pop(k, None)
         st.rerun()
@@ -209,7 +219,7 @@ def _submit_feedback(debate: dict[str, Any], result: dict[str, Any], *, demo: bo
         st.session_state["persona_after"] = _persona_state(st.session_state["user_id"])
         st.rerun()
     except Exception as exc:  # noqa: BLE001
-        st.error(f"피드백 저장 실패: {type(exc).__name__}: {exc}")
+        st.error(f"Failed to save feedback: {type(exc).__name__}: {exc}")
 
 
 # ----------------------------------------------------------------- entry
@@ -231,7 +241,7 @@ def main() -> None:
 
     debate = _poll(debate_id)
     if debate is None:
-        st.info("토론 문서를 불러오는 중…")
+        st.info("Loading debate…")
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=1000, key="wait_poll")
         return

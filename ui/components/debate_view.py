@@ -57,9 +57,9 @@ def tale_of_the_tape(debate: dict[str, Any]) -> str:
     if not rounds:
         needle, label = 50, "—"
     elif converged:
-        needle, label = 50, "RESOLVED · 코치 합의 도달"
+        needle, label = 50, "RESOLVED · coaches reached consensus"
     else:
-        needle, label = 68, "HIGH · 코치 의견 갈림"
+        needle, label = 68, "HIGH · coaches split"
 
     return f"""
 <div class="ff-tape">
@@ -77,7 +77,7 @@ def tale_of_the_tape(debate: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------- diagnostic viewer (hero)
-def viewer_html(pose_data: dict[str, Any] | None, video_url: str | None) -> str:
+def viewer_html(pose_data: dict[str, Any] | None, video_url: str | None, *, autoplay: bool = False) -> str:
     pose = pose_data or {}
     angle = _esc((pose.get("camera_angle") or "—")).upper()
     flags = pose.get("safety_flags") or []
@@ -89,9 +89,11 @@ def viewer_html(pose_data: dict[str, Any] | None, video_url: str | None) -> str:
     if keyframes:
         media = f'<img src="{_esc(keyframes[0])}" alt="annotated pose"/>'
     elif video_url:
-        media = f'<video src="{_esc(video_url)}" controls preload="metadata"></video>'
+        # 데모 영웅: muted-autoplay-loop(살아있는 프레임) / 라이브: controls(스크럽)
+        attrs = "autoplay loop muted playsinline" if autoplay else 'controls preload="metadata"'
+        media = f'<video src="{_esc(video_url)}" {attrs}></video>'
     else:
-        msg = "분석 중…" if not pose else "주석 프레임 준비 중 — 영상/키프레임 대기"
+        msg = "Analyzing…" if not pose else "Annotated frame pending — awaiting video / keyframe"
         media = f'<div class="vempty">{_esc(msg)}</div>'
 
     return f"""
@@ -204,10 +206,10 @@ def debate_feed(debate: dict[str, Any]) -> str:
 
     body = ""
     if not rounds:
-        body = '<div class="ff-mono" style="color:var(--faint);font-size:12px;padding:20px 0">두 코치가 영상을 분석 중…</div>'
+        body = '<div class="ff-mono" style="color:var(--faint);font-size:12px;padding:20px 0">Both coaches are analyzing the video…</div>'
     for i, rnd in enumerate(rounds):
         n = rnd.get("round", i + 1)
-        label = f"ROUND {n}" + (" — 격화" if n >= 2 else "")
+        label = f"ROUND {n}" + (" — ESCALATING" if n >= 2 else "")
         body += f'<div class="ff-rounddiv"><span>{_esc(label)}</span></div>'
         enc = rnd.get("encourager") or {}
         scr = rnd.get("scrutinizer") or {}
@@ -241,9 +243,9 @@ def verdict_html(consensus: dict[str, Any] | None) -> str:
     recall = ""
     if refs:
         n = len(refs)
-        recall = f'<div class="ff-recall">⟲ 과거 세션 {n}건 회상 — 당신의 이력이 이번 판결에 반영됨 <span style="color:var(--faint)">(Phoenix MCP)</span></div>'
+        recall = f'<div class="ff-recall">⟲ Recalled {n} past session{"s" if n != 1 else ""} — your history shaped this verdict <span style="color:var(--faint)">(Phoenix MCP)</span></div>'
 
-    disclaimer = _esc(consensus.get("disclaimer", "이 분석은 정보 제공용입니다. 의학 조언이 아닙니다."))
+    disclaimer = _esc(consensus.get("disclaimer", "This analysis is for informational purposes only. Not medical advice."))
     rcount = consensus.get("round_count_used")
     who = f"The Mediator · Head Coach" + (f" · {rcount} rounds" if rcount else "")
 
