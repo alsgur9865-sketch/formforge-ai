@@ -146,6 +146,16 @@ def _demo_video_uri() -> str | None:
     return "data:video/mp4;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
 
 
+@st.cache_data(show_spinner=False)
+def _demo_keyframe_uri() -> str | None:
+    """데모 영웅용: 미리 구운 주석 프리즈프레임(§8 오버레이) data URI. scripts/gen_demo_keyframe.py 산출."""
+    import base64
+    p = Path(__file__).resolve().parent.parent / "data" / "demo_keyframe.jpg"
+    if not p.exists():
+        return None
+    return "data:image/jpeg;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
+
+
 def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     _header()
     status = debate.get("status", "pending")
@@ -163,7 +173,12 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
 
     left, right = st.columns([1.05, 0.95])
     with left:
-        video_url = _demo_video_uri() if demo else _signed_video(debate)
+        # 데모: 키프레임(프리즈프레임)이 있으면 영상 인코딩 생략(viewer_html이 img 우선).
+        if demo:
+            has_kf = bool((debate.get("pose_data") or {}).get("keyframe_urls"))
+            video_url = None if has_kf else _demo_video_uri()
+        else:
+            video_url = _signed_video(debate)
         st.markdown(dv.viewer_html(debate.get("pose_data"), video_url, autoplay=demo), unsafe_allow_html=True)
         st.markdown(dv.readout_html(debate.get("pose_data")), unsafe_allow_html=True)
     with right:
@@ -231,7 +246,11 @@ def main() -> None:
     # 데모 모드: 샘플 스냅샷 렌더 (클라우드 불필요)
     if st.session_state.get("demo") or st.query_params.get("demo") == "1":
         from ui.sample_data import sample_debate
-        screen_debate(sample_debate(), demo=True)
+        deb = sample_debate()
+        kf = _demo_keyframe_uri()  # 미리 구운 §8 주석 프리즈프레임을 히어로로
+        if kf:
+            deb.setdefault("pose_data", {})["keyframe_urls"] = [kf]
+        screen_debate(deb, demo=True)
         return
 
     debate_id = st.session_state.get("debate_id")

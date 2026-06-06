@@ -393,15 +393,125 @@ def _merge(
 
 
 # ---------------------------------------------------------------------------
+# §8 포즈 오버레이 — 히어로 keyframe 렌더 + GCS 업로드 (fail-soft 부가물)
+# ---------------------------------------------------------------------------
+
+# MediaPipe LM 인덱스 (pose_mediapipe.LM 과 동일)
+_L_KNEE, _R_KNEE, _L_HIP, _R_HIP, _L_ANKLE, _R_ANKLE = 25, 26, 23, 24, 27, 28
+_SEV_ORDER = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+
+
+def _grab_frame(video_path: str, t_sec: float):
+    """rep-바닥 시각의 원본 풀해상도 프레임 1장 (cv2 POS_MSEC seek)."""
+    cap = cv2.VideoCapture(video_path)
+    try:
+        cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, t_sec) * 1000.0)
+        ok, frame = cap.read()
+        return frame if ok else None
+    finally:
+        cap.release()
+
+
+def _select_hero(merged: dict[str, Any]) -> tuple[dict | None, dict | None]:
+    """히어로 rep + flag 선정. flag 있으면 최고 severity flag 의 rep, 없으면 가장 깊은 rep(+good)."""
+    reps = merged.get("reps") or []
+    if not reps:
+        return None, None
+    flags = merged.get("safety_flags") or []
+    if flags:
+        flag = max(flags, key=lambda f: _SEV_ORDER.get((f.get("severity") or "").lower(), 0))
+        rep_nums = flag.get("rep_numbers") or []
+        rep = next((r for r in reps if r["rep_number"] in rep_nums), reps[0])
+        return rep, flag
+    return min(reps, key=lambda r: r.get("depth_degrees", 999)), None
+
+
+def _overlay_spec(flag: dict[str, Any], rep: dict[str, Any]):
+    """flag(issue) + rep 실측치 → (빨강 강조 관절, 라벨 리스트). 가짜 각도 금지 — 실측만 숫자.
+
+    깊이가 합격(≤100°)이고 flag 가 깊이 자체가 아니면 초록 'DEPTH N° ✓' 를 동반한다
+    (DESIGN.md §1: 같은 몸 위 Scrutinizer 빨강 + Encourager 초록 = 대립의 시각화).
+    """
+    from agents.pose_overlay import OverlayLabel
+    issue = (flag.get("issue") or "").lower()
+    depth = rep.get("depth_degrees")
+    lean = rep.get("back_angle_at_bottom")
+    good: list = []
+    if (isinstance(depth, (int, float)) and 0 < depth <= 100
+            and "depth" not in issue and "shallow" not in issue):
+        good = [OverlayLabel(_R_KNEE, f"DEPTH {depth}°", "good")]  # 무릎 앵커(깊이=무릎굴곡) — 힙 LEAN 라벨과 분리
+
+    if "valgus" in issue:
+        right = "right" in issue
+        idx = _R_KNEE if right else _L_KNEE
+        return [idx], [OverlayLabel(idx, f"KNEE VALGUS ({'R' if right else 'L'})", "risk")] + good
+    if "depth" in issue or "shallow" in issue:
+        lab = f"DEPTH {depth}°" if isinstance(depth, (int, float)) and depth > 0 else "DEPTH"
+        return [_L_KNEE, _R_KNEE], [OverlayLabel(_L_KNEE, lab, "risk")]
+    if "lean" in issue or "round" in issue or "back" in issue:
+        lab = f"LEAN {lean}°" if isinstance(lean, (int, float)) and lean > 0 else "FORWARD LEAN"
+        return [_L_HIP, _R_HIP], [OverlayLabel(_L_HIP, lab, "risk")] + good
+    if "heel" in issue:
+        return [_L_ANKLE, _R_ANKLE], [OverlayLabel(_L_ANKLE, "HEEL LIFT", "risk")] + good
+    if "toe" in issue or "track" in issue:
+        return [_L_KNEE], [OverlayLabel(_L_KNEE, "KNEE TRACK", "risk")] + good
+    return [_L_KNEE], [OverlayLabel(_L_KNEE, (issue.replace("_", " ").upper()[:18] or "FLAG"), "risk")] + good
+
+
+def _good_spec(rep: dict[str, Any]):
+    """flag 없는 깨끗한 rep — 초록 DEPTH 라벨만 (빨강 강조 없음)."""
+    from agents.pose_overlay import OverlayLabel
+    depth = rep.get("depth_degrees")
+    lab = f"DEPTH {depth}°" if isinstance(depth, (int, float)) and depth > 0 else "DEPTH OK"
+    return [], [OverlayLabel(_L_KNEE, lab, "good")]
+
+
+def _attach_keyframe_overlay(
+    merged: dict[str, Any], analysis, video_path: str, debate_id: str | None,
+) -> None:
+    """히어로 rep 오버레이 렌더 → GCS 업로드 → merged['keyframe_urls'] 주입. 전부 fail-soft."""
+    try:
+        rep, flag = _select_hero(merged)
+        if rep is None:
+            return
+        hero = next((r for r in analysis.reps if r.rep_number == rep["rep_number"]), None)
+        if hero is None or not hero.bottom_landmarks:
+            return
+        frame = _grab_frame(video_path, hero.bottom_timestamp_sec)
+        if frame is None:
+            return
+        flagged, labels = _overlay_spec(flag, rep) if flag else _good_spec(rep)
+        from agents.pose_overlay import render_keyframe_overlay
+        jpg = render_keyframe_overlay(
+            frame, hero.bottom_landmarks, flagged, labels,
+            exercise=merged.get("exercise_type", ""),
+            timecode=f"REP {rep['rep_number']} · {hero.bottom_timestamp_sec:.1f}S",
+        )
+        if not debate_id:
+            return  # CLI/selftest: 렌더 경로만 검증, GCS 업로드 생략
+        from storage.cloud_storage_client import upload_image_bytes
+        _, signed = upload_image_bytes(
+            jpg, f"debates/{debate_id}/keyframes/rep_{rep['rep_number']}.jpg"
+        )
+        merged["keyframe_urls"] = [signed]
+    except Exception as e:  # noqa: BLE001 — 히어로 이미지는 부가물, 실패해도 파이프라인 생존
+        print(f"ℹ️ keyframe 오버레이 생략 ({type(e).__name__}: {e})", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
 # 메인 — 2-stage 통합
 # ---------------------------------------------------------------------------
 
 def run_pose_extractor(
     video_uri: str, exercise_type: str = "squat",
     user_context: dict[str, Any] | None = None,
+    debate_id: str | None = None,
 ) -> dict[str, Any]:
     """
     영상 → Stage1(MediaPipe 정량) → 신뢰도 가드 → Stage2(Gemini 해석) → merge.
+
+    debate_id 제공 시: 히어로 rep 의 §8 포즈 오버레이를 렌더해 GCS 업로드 후
+    결과에 keyframe_urls 주입 (fail-soft — 실패해도 분석 결과는 그대로 반환).
 
     Returns:
         성공: ARCHITECTURE §2.1 출력 스키마 dict.
@@ -456,7 +566,9 @@ def run_pose_extractor(
                 f"Stage 2 Gemini 해석 실패: {type(e).__name__}: {e}",
                 stage1,
             )
-        return _merge(stage1, interp, keyframes_sent=len(keyframes), stage2_latency=latency)
+        merged = _merge(stage1, interp, keyframes_sent=len(keyframes), stage2_latency=latency)
+        _attach_keyframe_overlay(merged, analysis, local_path, debate_id)
+        return merged
     finally:
         if tmp_cleanup:
             try:

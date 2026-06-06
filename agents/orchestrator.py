@@ -531,7 +531,7 @@ async def run_full_e2e(
     #    이벤트 루프를 막지 않게 별도 스레드에서 실행.
     pose_start = time.monotonic()
     pose_result = await asyncio.to_thread(
-        run_pose_extractor, video_uri, exercise_type, user_context
+        run_pose_extractor, video_uri, exercise_type, user_context, debate_id
     )
     pose_latency = time.monotonic() - pose_start
 

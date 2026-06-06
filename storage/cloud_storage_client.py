@@ -150,6 +150,31 @@ def upload_video_stream(
     return f"gs://{bucket.name}/{blob_path}"
 
 
+def upload_image_bytes(
+    data: bytes,
+    blob_path: str,
+    bucket_name: str | None = None,
+    content_type: str = "image/jpeg",
+    signed_url_minutes: int = 60,
+) -> tuple[str, str]:
+    """in-memory 이미지 바이트(키프레임 오버레이 JPEG)를 GCS 로 업로드.
+
+    영상 확장자 검증을 우회한다(이미지용). blob_path 예: debates/{id}/keyframes/rep_2.jpg
+    반환: (gs_uri, signed_url) — signed_url 은 Streamlit <img> 가 바로 로드.
+    """
+    from datetime import timedelta
+    bucket = ensure_bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+    blob.upload_from_string(data, content_type=content_type)
+    gs_uri = f"gs://{bucket.name}/{blob_path}"
+    signed = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=signed_url_minutes),
+        method="GET",
+    )
+    return gs_uri, signed
+
+
 # ---------------------------------------------------------------------------
 # 다운로드 / signed URL
 # ---------------------------------------------------------------------------

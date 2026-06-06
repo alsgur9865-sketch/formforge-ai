@@ -92,6 +92,7 @@ class FrameMetrics:
     avg_visibility: float          # 33개 landmark visibility 평균
     knee_vis_left: float = 0.0     # 좌무릎 visibility (occlusion 가중 평균용)
     knee_vis_right: float = 0.0    # 우무릎 visibility
+    landmarks: list[tuple[float, float, float]] | None = None  # 33좌표(x,y,visibility 정규화) — §8 오버레이용, 메모리 전용
 
 
 @dataclass
@@ -103,6 +104,7 @@ class RepMetrics:
     back_angle_at_top: int        # 시작/끝의 등 각도
     tempo: dict[str, float]       # {"down_sec", "up_sec", "pause_sec"}
     bottom_timestamp_sec: float = 0.0  # 최저점 시각 (Stage 2 keyframe 추출용)
+    bottom_landmarks: list[tuple[float, float, float]] | None = None  # 최저점 프레임 33좌표 — §8 오버레이용, 메모리 전용
 
 
 @dataclass
@@ -201,6 +203,12 @@ def _process_frame(frame_idx: int, ts: float, landmarks) -> FrameMetrics:
         except IndexError:
             return 0.0
 
+    # 33좌표 보존 (정규화 x,y,visibility) — Stage2 후 히어로 rep 오버레이 렌더용.
+    coords = [
+        (float(lm.x), float(lm.y), float(getattr(lm, "visibility", 0.0)))
+        for lm in landmarks
+    ]
+
     return FrameMetrics(
         frame_idx=frame_idx,
         timestamp_sec=ts,
@@ -212,6 +220,7 @@ def _process_frame(frame_idx: int, ts: float, landmarks) -> FrameMetrics:
         avg_visibility=float(np.mean(visibilities)) if visibilities else 0.0,
         knee_vis_left=vis(LM.LEFT_KNEE),
         knee_vis_right=vis(LM.RIGHT_KNEE),
+        landmarks=coords,
     )
 
 
@@ -468,6 +477,7 @@ def analyze_video(video_path: str, exercise_type: str = "squat",
             back_angle_at_bottom=back_bottom,
             back_angle_at_top=back_top,
             bottom_timestamp_sec=round(bottom_frame.timestamp_sec, 3),
+            bottom_landmarks=bottom_frame.landmarks,
             tempo={"down_sec": round(down_sec, 2),
                    "up_sec":   round(up_sec, 2),
                    "pause_sec": 0.0},
