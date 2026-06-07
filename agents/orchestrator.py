@@ -357,10 +357,15 @@ def _ensure_phoenix_registered() -> bool:
             .rstrip("/")
             + "/v1/traces"
         )
+        # batch=True → BatchSpanProcessor(백그라운드 비동기 export). 기본 SimpleSpanProcessor 는
+        # span 종료마다 동기 HTTP export 로 호출 스레드를 막는다 → Cloud Run 에서 첫 ADK span
+        # export 가 블로킹되면 토론 전체가 멈춘다(실측: register 후 무음·rounds=0). 배치는 절대
+        # 호출 스레드를 막지 않아 토론이 끝까지 진행된다(P1 trace 는 백그라운드로 계속 송출).
         tracer_provider = register(
             project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
             endpoint=endpoint,
             headers={"authorization": f"Bearer {api_key}"},
+            batch=True,
         )
         GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
         _PHOENIX_REGISTERED = True

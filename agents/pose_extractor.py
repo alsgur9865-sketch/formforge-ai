@@ -606,6 +606,7 @@ def _register_phoenix() -> None:
             endpoint=endpoint,
             headers={"authorization": f"Bearer {api_key}"} if api_key else None,
             auto_instrument=False,
+            batch=True,  # 비블로킹 export (동기 SimpleSpanProcessor 블로킹 방지 — orchestrator 참조)
         )
     except Exception as e:  # noqa: BLE001 — 관측성은 fail-soft
         print(f"ℹ️ Phoenix register 생략 ({type(e).__name__}). span 은 로컬에만.", file=sys.stderr)

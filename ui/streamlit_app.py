@@ -1,8 +1,12 @@
 # 파일 위치: ui/streamlit_app.py
 """FormForge AI — 메인 Streamlit 앱 (DESIGN.md "The Diagnostic Freeze-Frame").
 
-플로우: 업로드 → run_full_e2e(별도 스레드) → Firestore 1초 폴링 → 토론 라이브 →
-판결 → 피드백(페르소나 진화). 백엔드 import는 지연 처리(데모 모드는 클라우드 불필요).
+플로우: 업로드 → run_full_e2e(요청 내 동기 실행, ~2분 spinner) → Firestore 기록 →
+토론·판결 렌더 → 피드백(페르소나 진화). 백엔드 import는 지연 처리(데모 모드는 클라우드 불필요).
+
+⚠️ Cloud Run은 요청 처리 중에만 CPU를 할당한다(기본 스로틀링). 파이프라인을 백그라운드
+스레드로 돌리면 응답 종료 후 CPU가 끊겨 토론이 멈춘다 → 요청 안에서 동기 실행해야
+상시-CPU(유료) 없이 무료 티어로 완주한다.
 
 로컬 실행:  streamlit run ui/streamlit_app.py
 데모(클라우드 없이 렌더 확인):  streamlit run ui/streamlit_app.py 후 URL에 ?demo=1
@@ -13,7 +17,6 @@ import os
 import sys
 import uuid
 import asyncio
-import threading
 from pathlib import Path
 from typing import Any
 
@@ -28,29 +31,32 @@ from ui.components import trace_view as tv  # noqa: E402
 from ui.components import feedback_form as fb  # noqa: E402
 
 EXERCISES = ["squat", "deadlift", "pushup"]
-ACTIVE = ("pending", "debating")
 DONE = ("feedback_pending", "done")
 
-# 스레드(파이프라인)에서 발생한 에러를 UI로 전달하는 프로세스 전역
+# 파이프라인 동기 실행 중 발생한 에러를 UI로 전달하는 프로세스 전역
 _PIPELINE_ERRORS: dict[str, str] = {}
 
 
 # ----------------------------------------------------------------- backend (lazy)
-def _start_pipeline(debate_id: str, video_uri: str, user_context: dict[str, Any],
-                    exercise_type: str, persona_state: dict | None, user_id: str) -> None:
-    """run_full_e2e를 별도 데몬 스레드에서 실행 (Firestore에 자동 기록)."""
-    def _worker() -> None:
-        try:
-            from agents.orchestrator import run_full_e2e
+def _run_pipeline_sync(debate_id: str, video_uri: str, user_context: dict[str, Any],
+                       exercise_type: str, persona_state: dict | None, user_id: str) -> None:
+    """run_full_e2e를 요청 스레드 안에서 동기 실행 (결과는 Firestore에 기록).
+
+    Cloud Run 기본 스로틀링(요청 처리 중에만 CPU 할당)에서 백그라운드 스레드로 돌리면
+    응답 종료 후 토론이 멈춘다. 요청 안에서 동기 실행하면 CPU가 유지돼 상시-CPU(유료)
+    없이 무료 티어로 끝까지 완주한다. 대가: 결과가 나올 때까지 ~2분 spinner.
+    """
+    from agents.orchestrator import run_full_e2e
+    try:
+        with st.spinner("Both coaches are analyzing your video… "
+                        "(PoseExtractor → debate → ruling, up to ~2 min)"):
             asyncio.run(run_full_e2e(
                 video_uri, user_context,
                 exercise_type=exercise_type, persona_state=persona_state,
                 user_id=user_id, debate_id=debate_id, use_mcp=True,
             ))
-        except Exception as exc:  # noqa: BLE001 — 스레드 경계, UI로 전달
-            _PIPELINE_ERRORS[debate_id] = f"{type(exc).__name__}: {exc}"
-
-    threading.Thread(target=_worker, name=f"ffpipe-{debate_id}", daemon=True).start()
+    except Exception as exc:  # noqa: BLE001 — UI로 전달
+        _PIPELINE_ERRORS[debate_id] = f"{type(exc).__name__}: {exc}"
 
 
 def _poll(debate_id: str) -> dict[str, Any] | None:
@@ -119,8 +125,8 @@ def _trigger(file: Any, exercise: str, injuries: str, experience: str) -> None:
         return
 
     user_context = {"user_id": user_id, "injury_history": injuries or "", "experience_level": experience}
-    _start_pipeline(debate_id, video_uri, user_context, exercise, _persona_state(user_id), user_id)
-    st.session_state["debate_id"] = debate_id
+    st.session_state["debate_id"] = debate_id  # 에러로 끝나도 debate 화면(에러 배너)으로 전환되게 먼저 set
+    _run_pipeline_sync(debate_id, video_uri, user_context, exercise, _persona_state(user_id), user_id)
     st.rerun()
 
 
@@ -160,11 +166,7 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     _header()
     status = debate.get("status", "pending")
 
-    # 활성 상태일 때만 폴링(완료 후 무한 refresh 방지). 데모는 폴링 안 함.
-    if not demo and status in ACTIVE:
-        from streamlit_autorefresh import st_autorefresh
-        st_autorefresh(interval=1000, key="debate_poll")
-
+    # 파이프라인은 업로드 요청 안에서 동기 완료된 뒤 이 화면이 렌더되므로 폴링 불필요.
     err = _PIPELINE_ERRORS.get(debate.get("debate_id", ""))
     if err:
         st.error(f"Analysis pipeline error: {err}")
