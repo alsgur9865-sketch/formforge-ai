@@ -40,6 +40,8 @@ htmlcov/
 *.mov
 *.avi
 !data/sample_videos/.gitkeep
+# 데모 영웅 스켈레톤 영상은 데모 자산이라 추적(빌드/재현성)
+!data/demo_skeleton.mp4
 
 # MediaPipe 모델 자산 (바이너리 ~9MB. git 추적 X — 다운로드 가능)
 #   다운로드: analyze_video() 에러 메시지의 curl 명령 참조

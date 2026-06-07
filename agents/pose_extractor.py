@@ -57,8 +57,8 @@ _KEYFRAME_LONG_SIDE = 512  # Gemini 입력 이미지 긴 변 픽셀 (비용/속�
 
 # P5 의료 면책 (절대 원칙)
 _DISCLAIMER = (
-    "정보 제공용입니다. 의학적 조언이 아닙니다. "
-    "통증이나 부상이 있으면 전문가와 상담하세요."
+    "For informational purposes only. Not medical advice. "
+    "If you have pain or injury, consult a qualified professional."
 )
 
 
@@ -154,7 +154,7 @@ Your job is INTERPRETATION ONLY (no measuring):
 5. reasoning: 2-4 sentences in Korean summarizing the form honestly,
    acknowledging what the camera_angle could and could not assess.
 
-Respond in Korean for all text fields. Output JSON ONLY matching the schema.
+Respond in English for all text fields. Output JSON ONLY matching the schema.
 """
 
 
@@ -498,6 +498,28 @@ def _attach_keyframe_overlay(
         print(f"ℹ️ keyframe 오버레이 생략 ({type(e).__name__}: {e})", file=sys.stderr)
 
 
+def _attach_skeleton_video(
+    merged: dict[str, Any], analysis, video_path: str, debate_id: str | None,
+) -> None:
+    """전체 영상 §8 스켈레톤 오버레이 mp4 렌더 → GCS 업로드 → merged['skeleton_video_url']. fail-soft.
+
+    움직이는 영웅 영상(스켈레톤이 몸을 따라 이동) — viewer 가 정지 keyframe 보다 우선 재생.
+    debate_id 없으면(CLI/selftest) 또는 frame_landmarks 비면(keep_frames=False) 스킵.
+    """
+    try:
+        if not debate_id or not getattr(analysis, "frame_landmarks", None):
+            return
+        from agents.pose_overlay import render_skeleton_video
+        mp4 = render_skeleton_video(video_path, analysis.frame_landmarks, flagged_indices=[])
+        from storage.cloud_storage_client import upload_image_bytes
+        _, signed = upload_image_bytes(
+            mp4, f"debates/{debate_id}/skeleton.mp4", content_type="video/mp4"
+        )
+        merged["skeleton_video_url"] = signed
+    except Exception as e:  # noqa: BLE001 — 부가물, 실패해도 분석 결과는 그대로 반환
+        print(f"ℹ️ 스켈레톤 영상 생략 ({type(e).__name__}: {e})", file=sys.stderr)
+
+
 # ---------------------------------------------------------------------------
 # 메인 — 2-stage 통합
 # ---------------------------------------------------------------------------
@@ -528,8 +550,8 @@ def run_pose_extractor(
             return _error("video_resolve_failed",
                           f"영상 로드 실패: {type(e).__name__}: {e}")
 
-        # --- Stage 1 ---
-        analysis = analyze_video(local_path, exercise_type=exercise_type)
+        # --- Stage 1 --- (debate_id 있으면 프레임 좌표 보존 → §8 스켈레톤 영상 렌더용)
+        analysis = analyze_video(local_path, exercise_type=exercise_type, keep_frames=bool(debate_id))
         stage1 = analysis.to_dict()
 
         # --- 신뢰도 가드 (Gemini fallback 시도 안 함) ---
@@ -568,6 +590,7 @@ def run_pose_extractor(
             )
         merged = _merge(stage1, interp, keyframes_sent=len(keyframes), stage2_latency=latency)
         _attach_keyframe_overlay(merged, analysis, local_path, debate_id)
+        _attach_skeleton_video(merged, analysis, local_path, debate_id)
         return merged
     finally:
         if tmp_cleanup:
@@ -642,7 +665,7 @@ def _selftest() -> int:
         "3. safety_flags 리스트 존재": isinstance(result.get("safety_flags"), list),
         "4. form_score 0~100": 0 <= result["overall_metrics"].get("form_score_0_100", -1) <= 100,
         "5. reps 에 knee_alignment 병합됨": all("knee_alignment" in r for r in result["reps"]),
-        "6. P5 면책 포함": "의학적 조언이 아닙니다" in result.get("disclaimer", ""),
+        "6. P5 면책 포함": "Not medical advice" in result.get("disclaimer", ""),
         "7. reasoning(자연어) 존재": bool(result.get("reasoning")),
     }
     for name, ok in checks.items():
