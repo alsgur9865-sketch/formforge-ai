@@ -61,6 +61,15 @@ def tale_of_the_tape(debate: dict[str, Any]) -> str:
     else:
         needle, label = 68, "HIGH · coaches split"
 
+    # round pill: 합의로 끝났으면 실제 진행 라운드만 표시("2/3" 오해 방지),
+    # 진행 중일 때만 현재/최대(MAX_DEBATE_ROUNDS) 카운트다운.
+    if converged:
+        pill_txt = f"{n_rounds} ROUNDS"
+    elif n_rounds:
+        pill_txt = f"ROUND {n_rounds} / {max_rounds}"
+    else:
+        pill_txt = "PENDING"
+
     return f"""
 <div class="ff-tape">
   <div>
@@ -70,7 +79,7 @@ def tale_of_the_tape(debate: dict[str, Any]) -> str:
   <div class="tension">TENSION
     <div class="ff-tbar"><i style="left:{needle}%"></i></div>
   </div>
-  <div class="pill ff-mono">ROUND {n_rounds} / {max_rounds}</div>
+  <div class="pill ff-mono">{pill_txt}</div>
 </div>
 <div class="ff-mono" style="font-size:10.5px;color:var(--warning);margin:-8px 0 14px 2px">{_esc(label)}</div>
 """
@@ -85,13 +94,14 @@ def viewer_html(pose_data: dict[str, Any] | None, video_url: str | None, *, auto
     if flags:
         top_flag = f'<div class="r"><b></b>▲ {_esc(_humanize(flags[0].get("issue", "")))}</div>'
 
-    keyframes = pose.get("keyframe_urls") or []  # §8 백엔드 도입 후 채워짐
-    if keyframes:
-        media = f'<img src="{_esc(keyframes[0])}" alt="annotated pose"/>'
-    elif video_url:
-        # 데모 영웅: muted-autoplay-loop(살아있는 프레임) / 라이브: controls(스크럽)
+    # 움직이는 스켈레톤 영상(데모 data URI / 라이브 signed)을 우선 재생 — 정지 keyframe 은 fallback.
+    keyframes = pose.get("keyframe_urls") or []
+    if video_url:
+        # 스켈레톤 영상: muted-autoplay-loop(움직이는 오버레이) / 원본: controls(스크럽)
         attrs = "autoplay loop muted playsinline" if autoplay else 'controls preload="metadata"'
         media = f'<video src="{_esc(video_url)}" {attrs}></video>'
+    elif keyframes:
+        media = f'<img src="{_esc(keyframes[0])}" alt="annotated pose"/>'
     else:
         msg = "Analyzing…" if not pose else "Annotated frame pending — awaiting video / keyframe"
         media = f'<div class="vempty">{_esc(msg)}</div>'
@@ -152,7 +162,7 @@ def readout_html(pose_data: dict[str, Any] | None) -> str:
 
 
 # ---------------------------------------------------------------- escalating debate feed
-def _enc_msg(enc: dict[str, Any], chip_good: str | None) -> str:
+def _enc_msg(enc: dict[str, Any], chip_good: str | None, delay: float | None = None) -> str:
     praise = _esc(enc.get("praise", ""))
     sub_bits = [enc.get("concern_one"), enc.get("actionable_tip")]
     sub = " ".join(_esc(s) for s in sub_bits if s)
@@ -161,8 +171,9 @@ def _enc_msg(enc: dict[str, Any], chip_good: str | None) -> str:
     if addresses:
         sub_html += f'<div class="sub" style="color:var(--faint)">↳ {_esc(addresses)}</div>'
     chip = f'<span class="ff-chip good">→ {_esc(chip_good)}</span>' if chip_good else ""
+    style = f' style="animation:ffrise .5s ease-out both;animation-delay:{delay}s"' if delay is not None else ""
     return f"""
-<div class="ff-msg enc">
+<div class="ff-msg enc"{style}>
   <div class="av">E</div>
   <div class="b">
     <div class="nm"><b>The Encourager</b> · Certified PT</div>
@@ -171,7 +182,7 @@ def _enc_msg(enc: dict[str, Any], chip_good: str | None) -> str:
 </div>"""
 
 
-def _scr_msg(scr: dict[str, Any]) -> str:
+def _scr_msg(scr: dict[str, Any], delay: float | None = None) -> str:
     risk = scr.get("primary_risk") or {}
     name = _humanize(risk.get("name", "")) or "Risk"
     severity = risk.get("severity", "")
@@ -184,8 +195,9 @@ def _scr_msg(scr: dict[str, Any]) -> str:
     cls = _sev_class(severity)
     chip = f'<span class="ff-chip risk">→ {_esc(name.upper())} ▲</span>' if cls == "risk" else \
            f'<span class="ff-chip" style="color:var(--warning);background:color-mix(in srgb,var(--warning) 15%,transparent)">→ {_esc(name.upper())}</span>'
+    style = f' style="animation:ffrise .5s ease-out both;animation-delay:{delay}s"' if delay is not None else ""
     return f"""
-<div class="ff-msg scr">
+<div class="ff-msg scr"{style}>
   <div class="av">S</div>
   <div class="b">
     <div class="nm"><b>The Scrutinizer</b> · Physiologist, PhD</div>
@@ -194,7 +206,7 @@ def _scr_msg(scr: dict[str, Any]) -> str:
 </div>"""
 
 
-def debate_feed(debate: dict[str, Any]) -> str:
+def debate_feed(debate: dict[str, Any], stagger: bool = False) -> str:
     rounds = debate.get("rounds") or []
     pose = debate.get("pose_data") or {}
     metrics = pose.get("overall_metrics") or {}
@@ -207,21 +219,35 @@ def debate_feed(debate: dict[str, Any]) -> str:
     body = ""
     if not rounds:
         body = '<div class="ff-mono" style="color:var(--faint);font-size:12px;padding:20px 0">Both coaches are analyzing the video…</div>'
+    # stagger: 영상이 재생되는 동안 토론이 끝까지 차오르도록 divider→enc→scr 순서로 등장 delay.
+    # step 을 영상 길이에 맞춰 동적 계산(요소 = 라운드당 divider+enc+scr). 데모만 — 라이브는 폴링.
+    duration = pose.get("duration_seconds") or 0
+    n_elem = len(rounds) * 3
+    step = round(duration * 0.85 / (n_elem - 1), 2) if (stagger and duration and n_elem > 1) else 1.8
+    seq = 0
     for i, rnd in enumerate(rounds):
         n = rnd.get("round", i + 1)
         label = f"ROUND {n}" + (" — ESCALATING" if n >= 2 else "")
-        body += f'<div class="ff-rounddiv"><span>{_esc(label)}</span></div>'
+        div_style = f' style="animation:ffrise .5s ease-out both;animation-delay:{round(seq * step, 2)}s"' if stagger else ""
+        seq += 1
+        body += f'<div class="ff-rounddiv"{div_style}><span>{_esc(label)}</span></div>'
         enc = rnd.get("encourager") or {}
         scr = rnd.get("scrutinizer") or {}
+        d_enc = round(seq * step, 2) if stagger else None
+        seq += 1
+        d_scr = round(seq * step, 2) if stagger else None
+        seq += 1
         # round 1만 good chip(중복 방지)
-        body += _enc_msg(enc, good_chip if i == 0 else None)
-        body += _scr_msg(scr)
+        body += _enc_msg(enc, good_chip if i == 0 else None, delay=d_enc)
+        body += _scr_msg(scr, delay=d_scr)
 
     return f"""
 <div class="ff-feed-head">
   <span class="ff-dot"></span><span class="t">Live Debate</span>{live_html}
 </div>
+<div class="ff-feed-scroll">
 {body}
+</div>
 """
 
 

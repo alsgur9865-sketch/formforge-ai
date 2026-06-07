@@ -61,7 +61,9 @@ html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
 
 /* ---- diagnostic viewer (hero) ---- */
 .ff-viewer{background:var(--vbg);border:1px solid #1d2530;border-radius:12px;position:relative;overflow:hidden;padding:0}
-.ff-viewer video,.ff-viewer img{display:block;width:100%;height:auto;max-height:500px;object-fit:contain;background:#05070b}
+.ff-viewer video,.ff-viewer img{display:block;width:100%;height:auto;object-fit:contain;background:#05070b}
+.ff-viewer video{max-height:520px}
+.ff-viewer img{max-height:700px}
 .ff-viewer .vchrome{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;font-family:'Geist Mono';font-size:10.5px;pointer-events:none;z-index:2}
 .ff-viewer .vchrome .l{color:#7a8597;letter-spacing:.06em}
 .ff-viewer .vchrome .r{color:var(--risk);display:flex;align-items:center;gap:6px}
@@ -82,13 +84,17 @@ html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
 
 /* ---- debate feed ---- */
 .ff-feed-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ff-feed-scroll{max-height:620px;overflow-y:auto;padding-right:10px}
+.ff-feed-scroll::-webkit-scrollbar{width:6px}
+.ff-feed-scroll::-webkit-scrollbar-thumb{background:var(--strong);border-radius:3px}
+.ff-feed-scroll::-webkit-scrollbar-track{background:transparent}
 .ff-feed-head .t{font-family:'Cabinet Grotesk';font-weight:700;font-size:14px;color:var(--text)}
 .ff-dot{width:7px;height:7px;border-radius:50%;background:var(--scr);box-shadow:0 0 0 4px var(--scr-glow)}
 .ff-live{margin-left:auto;font-family:'Geist Mono';font-size:10px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 35%,transparent);padding:3px 8px;border-radius:999px}
 .ff-rounddiv{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
 .ff-rounddiv::before,.ff-rounddiv::after{content:"";flex:1;height:1px;background:var(--hairline)}
 .ff-rounddiv span{font-family:'Geist Mono';font-size:10px;color:var(--faint);letter-spacing:.1em;white-space:nowrap}
-.ff-msg{display:flex;gap:10px;margin-bottom:10px;animation:ffrise .2s ease-out}
+.ff-msg{display:flex;gap:10px;margin-bottom:10px}
 @keyframes ffrise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .ff-msg .av{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-family:'Cabinet Grotesk';font-weight:800;font-size:13px;border:1px solid var(--hairline)}
 .ff-msg.enc .av{background:color-mix(in srgb,var(--enc) 14%,transparent);color:var(--enc);border-color:color-mix(in srgb,var(--enc) 35%,transparent)}

@@ -117,6 +117,7 @@ class PoseAnalysis:
     overall_metrics: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    frame_landmarks: list = field(default_factory=list)  # [(frame_idx, [(x,y,vis)...])] — §8 스켈레톤 영상 렌더용, 메모리 전용(to_dict 미포함)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -353,7 +354,7 @@ def _find_reps(knee_angles: list[float],
 # ---------------------------------------------------------------------------
 
 def analyze_video(video_path: str, exercise_type: str = "squat",
-                  target_fps: float = 30.0) -> PoseAnalysis:
+                  target_fps: float = 30.0, keep_frames: bool = False) -> PoseAnalysis:
     """
     비디오 파일을 MediaPipe Tasks PoseLandmarker(VIDEO 모드)로 분석해 정량 메트릭 반환.
     Acceptance 목표: 30초 영상 분석 5초 이내 (CPU) — 실측 후 model/샘플링 조정 가능.
@@ -525,6 +526,11 @@ def analyze_video(video_path: str, exercise_type: str = "squat",
     if not rep_metrics_list:
         warnings.append("⚠️ rep을 1개도 찾지 못함. 운동 동작인지 / 무릎 각도가 충분히 굽혀지는지 확인.")
 
+    # keep_frames=True 면 프레임별 33좌표를 메모리로 반환 (§8 스켈레톤 영상 렌더용).
+    frame_landmarks = (
+        [(f.frame_idx, f.landmarks) for f in frames if f.landmarks]
+        if keep_frames else []
+    )
     return PoseAnalysis(
         exercise_type=exercise_type,
         rep_count=len(rep_metrics_list),
@@ -532,6 +538,7 @@ def analyze_video(video_path: str, exercise_type: str = "squat",
         reps=rep_metrics_list,
         overall_metrics=overall,
         warnings=warnings,
+        frame_landmarks=frame_landmarks,
         metadata={
             "model": "mediapipe-tasks-pose-landmarker-full",
             "frames_analyzed": len(frames),

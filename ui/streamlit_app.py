@@ -183,8 +183,18 @@ def _demo_video_uri() -> str | None:
 
 
 @st.cache_data(show_spinner=False)
+def _demo_skeleton_uri() -> str | None:
+    """데모 영웅용: 미리 구운 스켈레톤 오버레이 영상(§8, 움직이는) data URI. scripts/gen_demo_skeleton.py 산출."""
+    import base64
+    p = Path(__file__).resolve().parent.parent / "data" / "demo_skeleton.mp4"
+    if not p.exists():
+        return None
+    return "data:video/mp4;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
+
+
+@st.cache_data(show_spinner=False)
 def _demo_keyframe_uri() -> str | None:
-    """데모 영웅용: 미리 구운 주석 프리즈프레임(§8 오버레이) data URI. scripts/gen_demo_keyframe.py 산출."""
+    """데모 영웅용 정지 프리즈프레임 data URI (스켈레톤 영상 도입 후 fallback 후보로 보존)."""
     import base64
     p = Path(__file__).resolve().parent.parent / "data" / "demo_keyframe.jpg"
     if not p.exists():
@@ -213,14 +223,18 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     with left:
         # 데모: 키프레임(프리즈프레임)이 있으면 영상 인코딩 생략(viewer_html이 img 우선).
         if demo:
-            has_kf = bool((debate.get("pose_data") or {}).get("keyframe_urls"))
-            video_url = None if has_kf else _demo_video_uri()
+            # 데모 영웅 = 미리 구운 스켈레톤 영상(움직이는 오버레이). 없으면 원본 영상 fallback.
+            video_url = _demo_skeleton_uri() or _demo_video_uri()
+            autoplay = True
         else:
-            video_url = _signed_video(debate)
-        st.markdown(dv.viewer_html(debate.get("pose_data"), video_url, autoplay=demo), unsafe_allow_html=True)
+            # 라이브 = pose_extractor 가 만든 스켈레톤 영상(skeleton_video_url) 우선, 없으면 원본 영상.
+            skeleton = (debate.get("pose_data") or {}).get("skeleton_video_url")
+            video_url = skeleton or _signed_video(debate)
+            autoplay = bool(skeleton)  # 스켈레톤이면 autoplay loop, 원본 영상이면 controls
+        st.markdown(dv.viewer_html(debate.get("pose_data"), video_url, autoplay=autoplay), unsafe_allow_html=True)
         st.markdown(dv.readout_html(debate.get("pose_data")), unsafe_allow_html=True)
     with right:
-        st.markdown(dv.debate_feed(debate), unsafe_allow_html=True)
+        st.markdown(dv.debate_feed(debate, stagger=demo), unsafe_allow_html=True)
 
     if debate.get("consensus"):
         st.markdown(dv.verdict_html(debate.get("consensus")), unsafe_allow_html=True)
@@ -284,11 +298,7 @@ def main() -> None:
     # 데모 모드: 샘플 스냅샷 렌더 (클라우드 불필요)
     if st.session_state.get("demo") or st.query_params.get("demo") == "1":
         from ui.sample_data import sample_debate
-        deb = sample_debate()
-        kf = _demo_keyframe_uri()  # 미리 구운 §8 주석 프리즈프레임을 히어로로
-        if kf:
-            deb.setdefault("pose_data", {})["keyframe_urls"] = [kf]
-        screen_debate(deb, demo=True)
+        screen_debate(sample_debate(), demo=True)
         return
 
     debate_id = st.session_state.get("debate_id")

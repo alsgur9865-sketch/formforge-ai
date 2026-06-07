@@ -12,10 +12,14 @@
 from __future__ import annotations
 
 import io
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -209,3 +213,131 @@ def render_keyframe_overlay(
     out = io.BytesIO()
     base.convert("RGB").save(out, format="JPEG", quality=jpeg_quality)
     return out.getvalue()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 스켈레톤 영상 (움직이는 오버레이) — §8 "Living Diagnostic"
+# 정지 프레임용 PIL 렌더(render_keyframe_overlay)와 달리 매 프레임 경량 cv2 드로잉.
+# 원본 영상을 다시 읽으며 프레임별 좌표로 뼈+노드를 그려 H.264 mp4 로 인코딩한다.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_BGR_BONE = (204, 182, 159)   # #9FB6CC 미세 연결선
+_BGR_CORE = (244, 246, 216)   # #D8F6F4 관절 코어
+_BGR_RISK = (92, 92, 255)     # #FF5C5C 부상 위험 플래그
+
+
+def _even(n: int) -> int:
+    """libx264 yuv420p 는 짝수 W/H 요구."""
+    return n - (n % 2)
+
+
+def _draw_skeleton_frame(
+    img: np.ndarray,
+    pts: dict[int, tuple[int, int]],
+    flagged: set[int],
+    scale: float,
+) -> None:
+    """크롭/리사이즈된 BGR 프레임 위에 뼈+노드를 그림 (in-place). 진짜 몸이 비치게 살짝 반투명."""
+    overlay = img.copy()
+    bw = max(2, int(round(2.6 * scale)))
+    cw = bw + max(2, int(round(2 * scale)))
+    for a, b in _BONES:
+        pa, pb = pts.get(a), pts.get(b)
+        if pa and pb:
+            cv2.line(overlay, pa, pb, (8, 11, 17), cw, cv2.LINE_AA)   # 다크 케이싱
+            cv2.line(overlay, pa, pb, _BGR_BONE, bw, cv2.LINE_AA)     # 밝은 뼈
+    for idx in _NODES:
+        p = pts.get(idx)
+        if p and idx not in flagged:
+            cv2.circle(overlay, p, max(4, int(6 * scale)), (8, 11, 17), -1, cv2.LINE_AA)
+            cv2.circle(overlay, p, max(3, int(5 * scale)), _BGR_CORE, -1, cv2.LINE_AA)
+    for idx in flagged:
+        p = pts.get(idx)
+        if p:
+            cv2.circle(overlay, p, max(4, int(7 * scale)), _BGR_RISK, -1, cv2.LINE_AA)
+            cv2.circle(overlay, p, max(7, int(11 * scale)), _BGR_RISK, max(2, int(2 * scale)), cv2.LINE_AA)
+    cv2.addWeighted(overlay, 0.92, img, 0.08, 0, img)
+
+
+def render_skeleton_video(
+    video_path: str,
+    frame_landmarks: list[tuple[int, list[tuple[float, float, float]]]],
+    flagged_indices: list[int] | None = None,
+    *,
+    out_fps: float = 30.0,
+    max_long_side: int = 720,
+    crop_pad: float = 0.08,
+) -> bytes:
+    """원본 영상 + 프레임별 33좌표 → 스켈레톤이 몸을 따라 움직이는 H.264 mp4 bytes.
+
+    frame_landmarks: [(frame_idx, [(x,y,vis)...])] — analyze_video(keep_frames=True) 산출.
+    전체 영상 통합 bbox 로 고정 크롭(프레임마다 들썩이지 않게) + 긴 변 다운스케일.
+    ffmpeg(libx264, yuv420p)로 인코딩 — 브라우저 <video> 호환.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg 가 PATH 에 없음 — 스켈레톤 영상 인코딩 불가.")
+    flagged = set(flagged_indices or [])
+    lm_by_idx = dict(frame_landmarks)
+    if not lm_by_idx:
+        raise ValueError("frame_landmarks 가 비어있음 (analyze_video(keep_frames=True) 필요).")
+
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"OpenCV 가 영상을 열지 못함: {video_path}")
+    W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # 통합 bbox(정규화) — 모든 가시 랜드마크 + 패딩. 영상 내내 몸이 프레임 안에 꽉 차게.
+    xs = [x for lm in lm_by_idx.values() for x, y, v in lm if v >= _MIN_VIS]
+    ys = [y for lm in lm_by_idx.values() for x, y, v in lm if v >= _MIN_VIS]
+    if xs and ys:
+        x0 = max(0, int((min(xs) - crop_pad) * W)); x1 = min(W, int((max(xs) + crop_pad) * W))
+        y0 = max(0, int((min(ys) - crop_pad) * H)); y1 = min(H, int((max(ys) + crop_pad) * H))
+    else:
+        x0, y0, x1, y1 = 0, 0, W, H
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        x0, y0, x1, y1 = 0, 0, W, H
+    cw, ch = x1 - x0, y1 - y0
+
+    rs = min(1.0, max_long_side / max(cw, ch))
+    ow, oh = _even(max(2, int(cw * rs))), _even(max(2, int(ch * rs)))
+    scale = oh / 900.0
+
+    def transform(lm: list[tuple[float, float, float]]) -> dict[int, tuple[int, int]]:
+        pts: dict[int, tuple[int, int]] = {}
+        for i, (x, y, v) in enumerate(lm):
+            if v >= _MIN_VIS:
+                pts[i] = (int(round((x * W - x0) * ow / cw)), int(round((y * H - y0) * oh / ch)))
+        return pts
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    tmp.close()
+    proc = subprocess.Popen(
+        [ffmpeg, "-y", "-loglevel", "error",
+         "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{ow}x{oh}", "-r", str(out_fps),
+         "-i", "-", "-an", "-vcodec", "libx264", "-pix_fmt", "yuv420p",
+         "-movflags", "+faststart", tmp.name],
+        stdin=subprocess.PIPE,
+    )
+    try:
+        idx = 0
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            lm = lm_by_idx.get(idx)
+            if lm is not None:
+                crop = frame[y0:y1, x0:x1]
+                crop = cv2.resize(crop, (ow, oh), interpolation=cv2.INTER_AREA)
+                _draw_skeleton_frame(crop, transform(lm), flagged, scale)
+                proc.stdin.write(crop.tobytes())
+            idx += 1
+    finally:
+        cap.release()
+        proc.stdin.close()
+        proc.wait()
+
+    data = Path(tmp.name).read_bytes()
+    Path(tmp.name).unlink(missing_ok=True)
+    return data
