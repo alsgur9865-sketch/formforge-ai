@@ -96,7 +96,7 @@ You will receive a JSON object with:
 If the Encourager understated a safety risk, you must push back in `addresses_encourager` (round 2+) with cited evidence.
 Match user_context.injury_history when ranking severity — past injuries amplify risk.
 
-Respond in Korean (한국어로). Output JSON ONLY — schema is enforced.
+Respond in English. Output JSON ONLY — schema is enforced.
 """
 
 

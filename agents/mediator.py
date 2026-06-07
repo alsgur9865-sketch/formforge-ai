@@ -41,8 +41,8 @@ from pydantic import BaseModel, Field
 # P5 — 의료/부상 면책 (절대원칙). ARCHITECTURE.md §2.4 출력의 한국어 문구.
 # ---------------------------------------------------------------------------
 MEDICAL_DISCLAIMER_KO = (
-    "이 분석은 정보 제공용입니다. 의학 조언이 아닙니다. "
-    "통증·부상이 있으면 정형외과·물리치료사와 상담하세요."
+    "This analysis is for informational purposes only. Not medical advice. "
+    "If you have pain or injury, consult an orthopedist or physical therapist."
 )
 
 APP_NAME = "formforge-mediator"
@@ -122,7 +122,7 @@ Your responsibility:
 6. Leave `past_debate_references` as an EMPTY array. (The Phoenix MCP tool that
    fills it is connected in a later step — do NOT invent debate ids.)
 
-Respond in Korean (한국어로). Output JSON ONLY — the schema is enforced.
+Respond in English. Output JSON ONLY — the schema is enforced.
 The `disclaimer` field will be set by the system; you may leave it as-is.
 """
 
@@ -165,7 +165,7 @@ WORKFLOW — do this IN ORDER:
    for `date`, and the `consensus` / `matched_risk` for `outcome`.
    If the tools return no past debates, use an empty array []. NEVER invent ids.
 
-Respond in Korean (한국어로).
+Respond in English.
 
 Output ONLY a JSON object — no markdown, no code fences, no text before/after — with EXACTLY:
 {
@@ -243,7 +243,7 @@ def _enforce_disclaimer(output: MediatorOutput) -> MediatorOutput:
     P5 절대원칙: 모든 결과에 의료 면책. LLM 변덕에 의존하지 않는다.
     """
     text = (output.disclaimer or "").strip()
-    if not text or "의학 조언" not in text:
+    if not text or "medical advice" not in text.lower():
         output.disclaimer = MEDICAL_DISCLAIMER_KO
     return output
 
