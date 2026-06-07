@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -38,14 +39,24 @@ def _mark_error(debate_id: str | None) -> None:
         print(f"(status='error' 기록 실패: {type(e).__name__}: {e})", file=sys.stderr)
 
 
+def _load_params() -> dict | None:
+    """파라미터 로드: argv[1] JSON 파일 경로(로컬/subprocess) 또는 FF_PARAMS env(Cloud Run Job override)."""
+    if len(sys.argv) >= 2:
+        return json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    raw = os.environ.get("FF_PARAMS")
+    if raw:
+        return json.loads(raw)
+    return None
+
+
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("PIPELINE_ERROR: 파라미터 JSON 경로 인자 없음", file=sys.stderr)
-        return 3
     try:
-        params = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+        params = _load_params()
     except Exception as e:  # noqa: BLE001
         print(f"PIPELINE_ERROR: 파라미터 로드 실패 {type(e).__name__}: {e}", file=sys.stderr)
+        return 3
+    if not params:
+        print("PIPELINE_ERROR: 파라미터 없음 (argv JSON 경로 또는 FF_PARAMS env 필요)", file=sys.stderr)
         return 3
 
     from agents.orchestrator import PoseExtractionError, run_full_e2e

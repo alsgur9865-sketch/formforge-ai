@@ -1,15 +1,14 @@
 # 파일 위치: ui/streamlit_app.py
 """FormForge AI — 메인 Streamlit 앱 (DESIGN.md "The Diagnostic Freeze-Frame").
 
-플로우: 업로드 → 파이프라인(run_full_e2e)을 독립 subprocess로 '비동기' 기동 → Firestore
-1초 폴링으로 pose→토론→판결이 순차로 채워지는 걸 렌더 → 피드백(페르소나 진화). 백엔드
-import는 지연 처리(데모 모드는 클라우드 불필요).
+플로우: 업로드 → 검증된 Cloud Run Job(formforge-pipeline)을 트리거해 '진짜' 파이프라인 실행
+→ Firestore 1초 폴링으로 pose→토론→판결이 순차로 채워지는 걸 렌더 → 피드백(페르소나 진화).
+백엔드 import는 지연 처리(데모 모드는 클라우드 불필요).
 
-⚠️ 왜 subprocess(메인스레드)+폴링인가:
- - Streamlit 비-메인 ScriptRunner 스레드에서 OTel 계측 ADK Runner 를 asyncio.run 하면 Cloud
-   Run 에서 토론 hang(rounds=0, 실측). 별도 프로세스 메인스레드에선 계측 켜도 정상 완주.
- - 1초 폴링이 인스턴스를 활성 유지 → 기본 CPU 스로틀링(무료 티어)에서도 subprocess 가 CPU 를
-   받는다. 상시-CPU(유료) 옵션 불필요 = $0. 자세한 근거는 agents/run_pipeline.py 참조.
+⚠️ 왜 Job 트리거인가: Streamlit 비-메인 ScriptRunner 스레드 + Cloud Run CPU 스로틀링 안에선
+OTel 계측 ADK 토론이 hang/무진척(실측 v7~v9: 스레드·블로킹 subprocess·비동기 subprocess 전부).
+파이프라인을 별도 Job(깨끗한 메인스레드·풀 CPU, 실측 65s 완주)으로 떼어 실행 → 진짜 결과를
+Firestore 로 받아 폴링 렌더. 자세한 근거는 _trigger_job() / agents/run_pipeline.py 참조.
 
 로컬 실행:  streamlit run ui/streamlit_app.py
 데모(클라우드 없이 렌더 확인):  streamlit run ui/streamlit_app.py 후 URL에 ?demo=1
@@ -40,39 +39,52 @@ _PIPELINE_ERRORS: dict[str, str] = {}
 
 
 # ----------------------------------------------------------------- backend (lazy)
-def _spawn_pipeline(debate_id: str, video_uri: str, user_context: dict[str, Any],
-                    exercise_type: str, persona_state: dict | None, user_id: str) -> None:
-    """파이프라인(run_full_e2e)을 독립 subprocess(메인스레드)로 '비동기' 기동하고 즉시 반환.
+def _trigger_job(debate_id: str, video_uri: str, user_context: dict[str, Any],
+                 exercise_type: str, persona_state: dict | None, user_id: str) -> None:
+    """검증된 Cloud Run Job(formforge-pipeline)을 실행해 '진짜' 파이프라인을 돌린다.
 
-    UI 는 이후 Firestore 폴링(autorefresh)으로 진행을 따라간다 — pose→토론→판결이 순차로 채워짐.
-    - 왜 subprocess(메인스레드): Streamlit 비-메인 ScriptRunner 스레드에서 asyncio.run 으로 OTel
-      계측 ADK Runner 를 돌리면 Cloud Run 에서 hang. 별도 프로세스 메인스레드에선 정상 완주.
-    - 왜 비동기+폴링: 1초 폴링이 인스턴스를 활성 유지 → 기본 CPU 스로틀링(무료 티어)에서도
-      subprocess 가 CPU 를 받는다(상시-CPU 유료 옵션 불필요 = $0). subprocess 는 부모 env 상속
-      → PHOENIX_API_KEY → P1 trace 송출 유지. stdout/stderr 는 컨테이너로 상속(Cloud Run 로그).
-    실패는 subprocess 가 Firestore 에 status='error' 로 기록(run_pipeline.py) → UI 가 배너 표시.
+    Streamlit 컨테이너(비-메인 ScriptRunner 스레드 + Cloud Run CPU 스로틀링) 안에선 OTel 계측
+    ADK 토론이 hang/무진척이다(실측 v7~v9: 스레드·블로킹 subprocess·비동기 subprocess 전부).
+    그래서 파이프라인을 별도 Job(깨끗한 메인스레드 + 풀 CPU, 실측 65s 완주)으로 떼어 실행한다.
+    Job 의 run_full_e2e 가 Firestore(debate_id)에 pose→rounds→consensus 를 기록하고, UI 는
+    폴링으로 따라간다(무한 로딩 X, 진짜 결과). PHOENIX_* 는 서비스 env 에서 override 로 Job 에
+    전달 → P1 trace 유지(시크릿은 코드/로그 미노출). Job 은 실행 시간만 과금(무료 티어 내).
     """
     import json
-    import subprocess
-    import tempfile
 
-    root = Path(__file__).resolve().parent.parent
+    import google.auth
+    import requests
+    from google.auth.transport.requests import Request as _GAuthRequest
+
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "formforge-prod")
+    region = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+    job = os.environ.get("FF_PIPELINE_JOB", "formforge-pipeline")
     params = {
         "debate_id": debate_id, "video_uri": video_uri, "exercise_type": exercise_type,
         "user_context": user_context, "persona_state": persona_state,
         "user_id": user_id, "use_mcp": True,
     }
+    env = [{"name": "FF_PARAMS", "value": json.dumps(params, ensure_ascii=False)}]
+    # 서비스가 가진 Phoenix 설정을 Job 으로 전달(P1) — 값은 런타임 env 에서만 읽어 코드/로그 미노출.
+    for k in ("PHOENIX_API_KEY", "PHOENIX_COLLECTOR_ENDPOINT", "PHOENIX_PROJECT_NAME"):
+        v = os.environ.get(k)
+        if v:
+            env.append({"name": k, "value": v})
     try:
-        fd, path = tempfile.mkstemp(suffix=".json", prefix="ffparams_")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(params, f, ensure_ascii=False)
-        # 비동기 기동(블로킹 X) — 출력은 컨테이너 stdout/stderr 상속 → Cloud Run 로그 스트리밍.
-        subprocess.Popen(
-            [sys.executable, "-m", "agents.run_pipeline", path],
-            cwd=str(root), env=os.environ.copy(),
-        )
-    except Exception as exc:  # noqa: BLE001 — 기동 실패만 여기서 처리
-        _PIPELINE_ERRORS[debate_id] = f"기동 실패: {type(exc).__name__}: {exc}"
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds.refresh(_GAuthRequest())
+        url = f"https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job}:run"
+        body = {"overrides": {"containerOverrides": [{"env": env}], "taskCount": 1, "timeout": "900s"}}
+        r = requests.post(url, json=body,
+                          headers={"Authorization": f"Bearer {creds.token}"}, timeout=30)
+        if r.status_code not in (200, 201):
+            _PIPELINE_ERRORS[debate_id] = f"Job 실행 실패 {r.status_code}: {r.text[:160]}"
+            print(f"[trigger_job] FAIL {r.status_code}: {r.text[:300]}", file=sys.stderr, flush=True)
+        else:
+            print(f"[trigger_job] OK job={job} debate={debate_id}", file=sys.stderr, flush=True)
+    except Exception as exc:  # noqa: BLE001 — 트리거 실패만 여기서 처리
+        _PIPELINE_ERRORS[debate_id] = f"Job 트리거 실패: {type(exc).__name__}: {exc}"
+        print(f"[trigger_job] EXC {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 
 def _poll(debate_id: str) -> dict[str, Any] | None:
@@ -142,8 +154,8 @@ def _trigger(file: Any, exercise: str, injuries: str, experience: str) -> None:
 
     user_context = {"user_id": user_id, "injury_history": injuries or "", "experience_level": experience}
     st.session_state["debate_id"] = debate_id  # 폴링 화면으로 전환되게 먼저 set
-    _spawn_pipeline(debate_id, video_uri, user_context, exercise, _persona_state(user_id), user_id)
-    st.rerun()  # → 폴링(autorefresh) 화면이 subprocess 진행을 따라감
+    _trigger_job(debate_id, video_uri, user_context, exercise, _persona_state(user_id), user_id)
+    st.rerun()  # → 폴링(autorefresh) 화면이 Job 진행(Firestore)을 따라감
 
 
 # ----------------------------------------------------------------- screen: debate
