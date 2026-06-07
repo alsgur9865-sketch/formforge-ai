@@ -64,7 +64,9 @@ def _trigger_job(debate_id: str, video_uri: str, user_context: dict[str, Any],
         "user_context": user_context, "persona_state": persona_state,
         "user_id": user_id, "use_mcp": True,
     }
-    env = [{"name": "FF_PARAMS", "value": json.dumps(params, ensure_ascii=False)}]
+    # default=str: persona_state 에 섞인 Firestore 전용 타입(DatetimeWithNanoseconds 등)을
+    # 문자열로 직렬화(토론은 persona 의 숫자 필드만 쓰므로 무해). 없으면 JSON 직렬화 TypeError.
+    env = [{"name": "FF_PARAMS", "value": json.dumps(params, ensure_ascii=False, default=str)}]
     # 서비스가 가진 Phoenix 설정을 Job 으로 전달(P1) — 값은 런타임 env 에서만 읽어 코드/로그 미노출.
     for k in ("PHOENIX_API_KEY", "PHOENIX_COLLECTOR_ENDPOINT", "PHOENIX_PROJECT_NAME"):
         v = os.environ.get(k)
