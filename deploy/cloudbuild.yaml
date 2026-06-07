@@ -60,7 +60,9 @@ steps:
       - --memory=4Gi
       - --cpu=2
       - --timeout=600
-      - --min-instances=1
+      # min-instances=0: 안 쓸 때 0으로 스케일다운 → 비용 $0(무료 티어 내). 파이프라인이
+      #   요청 안에서 동기 실행되므로 상주 인스턴스 불필요. 대가: 유휴 후 첫 요청 콜드스타트 ~20-40s.
+      - --min-instances=0
       - --session-affinity
       # --update-env-vars(병합)로 둔다 — 서비스에 이미 주입된 PHOENIX_API_KEY(시크릿)를
       # 재배포 때 보존(--set-env-vars 는 전체 교체라 매번 키를 날렸음, 세션15 부채).
