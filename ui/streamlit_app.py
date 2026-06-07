@@ -1,12 +1,14 @@
 # 파일 위치: ui/streamlit_app.py
 """FormForge AI — 메인 Streamlit 앱 (DESIGN.md "The Diagnostic Freeze-Frame").
 
-플로우: 업로드 → run_full_e2e(요청 내 동기 실행, ~2분 spinner) → Firestore 기록 →
-토론·판결 렌더 → 피드백(페르소나 진화). 백엔드 import는 지연 처리(데모 모드는 클라우드 불필요).
+플로우: 업로드 → 파이프라인(run_full_e2e)을 독립 subprocess로 실행(요청 내 블로킹, ~2분
+spinner) → Firestore 기록 → 토론·판결 렌더 → 피드백(페르소나 진화). 백엔드 import는 지연
+처리(데모 모드는 클라우드 불필요).
 
-⚠️ Cloud Run은 요청 처리 중에만 CPU를 할당한다(기본 스로틀링). 파이프라인을 백그라운드
-스레드로 돌리면 응답 종료 후 CPU가 끊겨 토론이 멈춘다 → 요청 안에서 동기 실행해야
-상시-CPU(유료) 없이 무료 티어로 완주한다.
+⚠️ 왜 subprocess 인가: Streamlit 스크립트는 비-메인 ScriptRunner 스레드에서 돈다. 그 스레드
+에서 OTel 계측된 ADK Runner 를 asyncio.run 으로 돌리면 Cloud Run 에서 토론이 hang(rounds=0)
+한다(실측). 메인스레드 프로세스에선 계측이 켜져 있어도 정상 완주. 요청 안에서 블로킹하므로
+Cloud Run CPU 도 유지된다(무료 티어). 자세한 근거는 agents/run_pipeline.py 참조.
 
 로컬 실행:  streamlit run ui/streamlit_app.py
 데모(클라우드 없이 렌더 확인):  streamlit run ui/streamlit_app.py 후 URL에 ?demo=1
@@ -16,7 +18,6 @@ from __future__ import annotations
 import os
 import sys
 import uuid
-import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -40,23 +41,51 @@ _PIPELINE_ERRORS: dict[str, str] = {}
 # ----------------------------------------------------------------- backend (lazy)
 def _run_pipeline_sync(debate_id: str, video_uri: str, user_context: dict[str, Any],
                        exercise_type: str, persona_state: dict | None, user_id: str) -> None:
-    """run_full_e2e를 요청 스레드 안에서 동기 실행 (결과는 Firestore에 기록).
+    """파이프라인(run_full_e2e)을 독립 subprocess(메인스레드)에서 실행 — 요청 안에서 블로킹.
 
-    Cloud Run 기본 스로틀링(요청 처리 중에만 CPU 할당)에서 백그라운드 스레드로 돌리면
-    응답 종료 후 토론이 멈춘다. 요청 안에서 동기 실행하면 CPU가 유지돼 상시-CPU(유료)
-    없이 무료 티어로 끝까지 완주한다. 대가: 결과가 나올 때까지 ~2분 spinner.
+    Streamlit ScriptRunner(비-메인 스레드)에서 직접 asyncio.run 하면 OTel 계측된 ADK Runner
+    가 Cloud Run 에서 hang 한다(실측). 별도 프로세스의 메인스레드에선 계측이 켜져 있어도 정상
+    완주. 요청 안에서 블로킹하므로 Cloud Run CPU 가 유지되고(무료 티어), subprocess 는 부모
+    env(PHOENIX_API_KEY 등)를 상속해 P1 trace 도 정상 송출. 대가: ~2분 spinner.
     """
-    from agents.orchestrator import run_full_e2e
+    import json
+    import subprocess
+    import tempfile
+
+    root = Path(__file__).resolve().parent.parent
+    params = {
+        "debate_id": debate_id, "video_uri": video_uri, "exercise_type": exercise_type,
+        "user_context": user_context, "persona_state": persona_state,
+        "user_id": user_id, "use_mcp": True,
+    }
+    tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
     try:
+        json.dump(params, tmp, ensure_ascii=False)
+        tmp.close()
         with st.spinner("Both coaches are analyzing your video… "
                         "(PoseExtractor → debate → ruling, up to ~2 min)"):
-            asyncio.run(run_full_e2e(
-                video_uri, user_context,
-                exercise_type=exercise_type, persona_state=persona_state,
-                user_id=user_id, debate_id=debate_id, use_mcp=True,
-            ))
+            proc = subprocess.run(
+                [sys.executable, "-m", "agents.run_pipeline", tmp.name],
+                cwd=str(root), env=os.environ.copy(),
+                capture_output=True, text=True, timeout=480,
+            )
+        # subprocess 로그를 Cloud Run 로그로 전달(디버깅 — 부모가 캡처했으므로 재출력).
+        if proc.stdout:
+            print(proc.stdout, file=sys.stderr, flush=True)
+        if proc.stderr:
+            print(proc.stderr, file=sys.stderr, flush=True)
+        if proc.returncode != 0:
+            tail = " / ".join((proc.stderr or "").strip().splitlines()[-3:])
+            _PIPELINE_ERRORS[debate_id] = tail or f"pipeline exited {proc.returncode}"
+    except subprocess.TimeoutExpired:
+        _PIPELINE_ERRORS[debate_id] = "Analysis timed out (>8 min). Try a shorter clip."
     except Exception as exc:  # noqa: BLE001 — UI로 전달
         _PIPELINE_ERRORS[debate_id] = f"{type(exc).__name__}: {exc}"
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
 
 
 def _poll(debate_id: str) -> dict[str, Any] | None:
@@ -166,10 +195,15 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     _header()
     status = debate.get("status", "pending")
 
-    # 파이프라인은 업로드 요청 안에서 동기 완료된 뒤 이 화면이 렌더되므로 폴링 불필요.
+    # 정상 경로: 파이프라인이 업로드 요청 안에서 subprocess 로 완료된 뒤 이 화면이 렌더된다.
+    # 단, 긴 블로킹 중 웹소켓이 끊겨 재접속하면 처리 중(미완료) 상태를 만날 수 있으므로
+    # 완료(DONE) 전·에러 없음일 때만 자동 폴링으로 완료까지 따라간다.
     err = _PIPELINE_ERRORS.get(debate.get("debate_id", ""))
     if err:
         st.error(f"Analysis pipeline error: {err}")
+    elif not demo and status not in DONE:
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=2000, key="debate_poll")
 
     st.markdown(dv.tale_of_the_tape(debate), unsafe_allow_html=True)
 
