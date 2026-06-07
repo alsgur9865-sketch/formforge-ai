@@ -1,14 +1,15 @@
 # 파일 위치: ui/streamlit_app.py
 """FormForge AI — 메인 Streamlit 앱 (DESIGN.md "The Diagnostic Freeze-Frame").
 
-플로우: 업로드 → 파이프라인(run_full_e2e)을 독립 subprocess로 실행(요청 내 블로킹, ~2분
-spinner) → Firestore 기록 → 토론·판결 렌더 → 피드백(페르소나 진화). 백엔드 import는 지연
-처리(데모 모드는 클라우드 불필요).
+플로우: 업로드 → 파이프라인(run_full_e2e)을 독립 subprocess로 '비동기' 기동 → Firestore
+1초 폴링으로 pose→토론→판결이 순차로 채워지는 걸 렌더 → 피드백(페르소나 진화). 백엔드
+import는 지연 처리(데모 모드는 클라우드 불필요).
 
-⚠️ 왜 subprocess 인가: Streamlit 스크립트는 비-메인 ScriptRunner 스레드에서 돈다. 그 스레드
-에서 OTel 계측된 ADK Runner 를 asyncio.run 으로 돌리면 Cloud Run 에서 토론이 hang(rounds=0)
-한다(실측). 메인스레드 프로세스에선 계측이 켜져 있어도 정상 완주. 요청 안에서 블로킹하므로
-Cloud Run CPU 도 유지된다(무료 티어). 자세한 근거는 agents/run_pipeline.py 참조.
+⚠️ 왜 subprocess(메인스레드)+폴링인가:
+ - Streamlit 비-메인 ScriptRunner 스레드에서 OTel 계측 ADK Runner 를 asyncio.run 하면 Cloud
+   Run 에서 토론 hang(rounds=0, 실측). 별도 프로세스 메인스레드에선 계측 켜도 정상 완주.
+ - 1초 폴링이 인스턴스를 활성 유지 → 기본 CPU 스로틀링(무료 티어)에서도 subprocess 가 CPU 를
+   받는다. 상시-CPU(유료) 옵션 불필요 = $0. 자세한 근거는 agents/run_pipeline.py 참조.
 
 로컬 실행:  streamlit run ui/streamlit_app.py
 데모(클라우드 없이 렌더 확인):  streamlit run ui/streamlit_app.py 후 URL에 ?demo=1
@@ -39,14 +40,17 @@ _PIPELINE_ERRORS: dict[str, str] = {}
 
 
 # ----------------------------------------------------------------- backend (lazy)
-def _run_pipeline_sync(debate_id: str, video_uri: str, user_context: dict[str, Any],
-                       exercise_type: str, persona_state: dict | None, user_id: str) -> None:
-    """파이프라인(run_full_e2e)을 독립 subprocess(메인스레드)에서 실행 — 요청 안에서 블로킹.
+def _spawn_pipeline(debate_id: str, video_uri: str, user_context: dict[str, Any],
+                    exercise_type: str, persona_state: dict | None, user_id: str) -> None:
+    """파이프라인(run_full_e2e)을 독립 subprocess(메인스레드)로 '비동기' 기동하고 즉시 반환.
 
-    Streamlit ScriptRunner(비-메인 스레드)에서 직접 asyncio.run 하면 OTel 계측된 ADK Runner
-    가 Cloud Run 에서 hang 한다(실측). 별도 프로세스의 메인스레드에선 계측이 켜져 있어도 정상
-    완주. 요청 안에서 블로킹하므로 Cloud Run CPU 가 유지되고(무료 티어), subprocess 는 부모
-    env(PHOENIX_API_KEY 등)를 상속해 P1 trace 도 정상 송출. 대가: ~2분 spinner.
+    UI 는 이후 Firestore 폴링(autorefresh)으로 진행을 따라간다 — pose→토론→판결이 순차로 채워짐.
+    - 왜 subprocess(메인스레드): Streamlit 비-메인 ScriptRunner 스레드에서 asyncio.run 으로 OTel
+      계측 ADK Runner 를 돌리면 Cloud Run 에서 hang. 별도 프로세스 메인스레드에선 정상 완주.
+    - 왜 비동기+폴링: 1초 폴링이 인스턴스를 활성 유지 → 기본 CPU 스로틀링(무료 티어)에서도
+      subprocess 가 CPU 를 받는다(상시-CPU 유료 옵션 불필요 = $0). subprocess 는 부모 env 상속
+      → PHOENIX_API_KEY → P1 trace 송출 유지. stdout/stderr 는 컨테이너로 상속(Cloud Run 로그).
+    실패는 subprocess 가 Firestore 에 status='error' 로 기록(run_pipeline.py) → UI 가 배너 표시.
     """
     import json
     import subprocess
@@ -58,34 +62,17 @@ def _run_pipeline_sync(debate_id: str, video_uri: str, user_context: dict[str, A
         "user_context": user_context, "persona_state": persona_state,
         "user_id": user_id, "use_mcp": True,
     }
-    tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
     try:
-        json.dump(params, tmp, ensure_ascii=False)
-        tmp.close()
-        with st.spinner("Both coaches are analyzing your video… "
-                        "(PoseExtractor → debate → ruling, up to ~2 min)"):
-            proc = subprocess.run(
-                [sys.executable, "-m", "agents.run_pipeline", tmp.name],
-                cwd=str(root), env=os.environ.copy(),
-                capture_output=True, text=True, timeout=480,
-            )
-        # subprocess 로그를 Cloud Run 로그로 전달(디버깅 — 부모가 캡처했으므로 재출력).
-        if proc.stdout:
-            print(proc.stdout, file=sys.stderr, flush=True)
-        if proc.stderr:
-            print(proc.stderr, file=sys.stderr, flush=True)
-        if proc.returncode != 0:
-            tail = " / ".join((proc.stderr or "").strip().splitlines()[-3:])
-            _PIPELINE_ERRORS[debate_id] = tail or f"pipeline exited {proc.returncode}"
-    except subprocess.TimeoutExpired:
-        _PIPELINE_ERRORS[debate_id] = "Analysis timed out (>8 min). Try a shorter clip."
-    except Exception as exc:  # noqa: BLE001 — UI로 전달
-        _PIPELINE_ERRORS[debate_id] = f"{type(exc).__name__}: {exc}"
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
+        fd, path = tempfile.mkstemp(suffix=".json", prefix="ffparams_")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(params, f, ensure_ascii=False)
+        # 비동기 기동(블로킹 X) — 출력은 컨테이너 stdout/stderr 상속 → Cloud Run 로그 스트리밍.
+        subprocess.Popen(
+            [sys.executable, "-m", "agents.run_pipeline", path],
+            cwd=str(root), env=os.environ.copy(),
+        )
+    except Exception as exc:  # noqa: BLE001 — 기동 실패만 여기서 처리
+        _PIPELINE_ERRORS[debate_id] = f"기동 실패: {type(exc).__name__}: {exc}"
 
 
 def _poll(debate_id: str) -> dict[str, Any] | None:
@@ -154,9 +141,9 @@ def _trigger(file: Any, exercise: str, injuries: str, experience: str) -> None:
         return
 
     user_context = {"user_id": user_id, "injury_history": injuries or "", "experience_level": experience}
-    st.session_state["debate_id"] = debate_id  # 에러로 끝나도 debate 화면(에러 배너)으로 전환되게 먼저 set
-    _run_pipeline_sync(debate_id, video_uri, user_context, exercise, _persona_state(user_id), user_id)
-    st.rerun()
+    st.session_state["debate_id"] = debate_id  # 폴링 화면으로 전환되게 먼저 set
+    _spawn_pipeline(debate_id, video_uri, user_context, exercise, _persona_state(user_id), user_id)
+    st.rerun()  # → 폴링(autorefresh) 화면이 subprocess 진행을 따라감
 
 
 # ----------------------------------------------------------------- screen: debate
@@ -195,15 +182,16 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     _header()
     status = debate.get("status", "pending")
 
-    # 정상 경로: 파이프라인이 업로드 요청 안에서 subprocess 로 완료된 뒤 이 화면이 렌더된다.
-    # 단, 긴 블로킹 중 웹소켓이 끊겨 재접속하면 처리 중(미완료) 상태를 만날 수 있으므로
-    # 완료(DONE) 전·에러 없음일 때만 자동 폴링으로 완료까지 따라간다.
+    # subprocess 가 비동기로 도는 동안 1초 폴링으로 진행(pose→토론→판결)을 따라간다.
+    # 완료(DONE)·에러일 땐 폴링 중단. (status='error' = subprocess 가 실패를 Firestore 에 기록.)
     err = _PIPELINE_ERRORS.get(debate.get("debate_id", ""))
+    if not err and status == "error":
+        err = "Analysis failed — please try again. (See Cloud Run logs for details.)"
     if err:
         st.error(f"Analysis pipeline error: {err}")
     elif not demo and status not in DONE:
         from streamlit_autorefresh import st_autorefresh
-        st_autorefresh(interval=2000, key="debate_poll")
+        st_autorefresh(interval=1000, key="debate_poll")
 
     st.markdown(dv.tale_of_the_tape(debate), unsafe_allow_html=True)
 

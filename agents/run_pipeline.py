@@ -27,6 +27,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+def _mark_error(debate_id: str | None) -> None:
+    """실패를 Firestore 에 status='error' 로 기록(best-effort) → UI 가 무한 폴링 안 하고 배너 표시."""
+    if not debate_id:
+        return
+    try:
+        from storage.firestore_client import update_debate_status
+        update_debate_status(debate_id, "error")
+    except Exception as e:  # noqa: BLE001 — 실패 기록 자체 실패는 무시
+        print(f"(status='error' 기록 실패: {type(e).__name__}: {e})", file=sys.stderr)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("PIPELINE_ERROR: 파라미터 JSON 경로 인자 없음", file=sys.stderr)
@@ -54,9 +65,11 @@ def main() -> int:
     except PoseExtractionError as pe:
         # 신뢰도 가드 — 토론 미진입(쓰레기 입력 차단). UI 가 에러 배너로 표시.
         print(f"POSE_GUARD: {pe}", file=sys.stderr)
+        _mark_error(params.get("debate_id"))
         return 2
     except Exception as e:  # noqa: BLE001
         print(f"PIPELINE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        _mark_error(params.get("debate_id"))
         return 1
     print("PIPELINE_OK", file=sys.stderr)
     return 0
