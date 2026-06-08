@@ -1,0 +1,14 @@
+# FormForge AI — Streamlit base theme (DESIGN.md tokens)
+# 커스텀 룩 대부분은 ui/theme.py의 CSS 주입으로 처리. 여기선 기본 다크 베이스만.
+[theme]
+base = "dark"
+primaryColor = "#34D1C4"
+backgroundColor = "#0B0E14"
+secondaryBackgroundColor = "#141A24"
+textColor = "#E6EAF2"
+
+[server]
+maxUploadSize = 200
+
+[browser]
+gatherUsageStats = false

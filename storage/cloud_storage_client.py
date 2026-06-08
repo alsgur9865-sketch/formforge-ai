@@ -82,6 +82,26 @@ def ensure_bucket(bucket_name: str | None = None, location: str = "us-central1")
     return bucket
 
 
+def _make_signed_url(blob, minutes: int) -> str:
+    """v4 signed URL 생성. 로컬(private key 보유 SA)은 직접 서명,
+    Cloud Run(compute SA — 토큰만, private key 없음)은 IAM SignBlob 로 서명 (C#4 해결).
+    """
+    from datetime import timedelta
+    exp = timedelta(minutes=minutes)
+    try:
+        return blob.generate_signed_url(version="v4", expiration=exp, method="GET")
+    except Exception:  # noqa: BLE001 — "you need a private key to sign" → IAM SignBlob 위임
+        import google.auth
+        from google.auth.transport import requests as _req
+        creds, _ = google.auth.default()
+        creds.refresh(_req.Request())
+        return blob.generate_signed_url(
+            version="v4", expiration=exp, method="GET",
+            service_account_email=creds.service_account_email,
+            access_token=creds.token,
+        )
+
+
 # ---------------------------------------------------------------------------
 # 업로드 (Streamlit / CLI 양쪽 사용)
 # ---------------------------------------------------------------------------
@@ -150,6 +170,26 @@ def upload_video_stream(
     return f"gs://{bucket.name}/{blob_path}"
 
 
+def upload_image_bytes(
+    data: bytes,
+    blob_path: str,
+    bucket_name: str | None = None,
+    content_type: str = "image/jpeg",
+    signed_url_minutes: int = 60,
+) -> tuple[str, str]:
+    """in-memory 이미지 바이트(키프레임 오버레이 JPEG)를 GCS 로 업로드.
+
+    영상 확장자 검증을 우회한다(이미지용). blob_path 예: debates/{id}/keyframes/rep_2.jpg
+    반환: (gs_uri, signed_url) — signed_url 은 Streamlit <img> 가 바로 로드.
+    """
+    bucket = ensure_bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+    blob.upload_from_string(data, content_type=content_type)
+    gs_uri = f"gs://{bucket.name}/{blob_path}"
+    signed = _make_signed_url(blob, signed_url_minutes)
+    return gs_uri, signed
+
+
 # ---------------------------------------------------------------------------
 # 다운로드 / signed URL
 # ---------------------------------------------------------------------------
@@ -180,15 +220,10 @@ def get_signed_url(gs_uri: str, expires_minutes: int = 60) -> str:
     no_scheme = gs_uri[5:]
     bucket_name, _, blob_path = no_scheme.partition("/")
 
-    from datetime import timedelta
     client = _gcs_client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_path)
-    return blob.generate_signed_url(
-        version="v4",
-        expiration=timedelta(minutes=expires_minutes),
-        method="GET",
-    )
+    return _make_signed_url(blob, expires_minutes)
 
 
 # ---------------------------------------------------------------------------

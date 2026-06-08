@@ -74,7 +74,7 @@ You will receive a JSON object with:
 In round 2+, you must include a one-sentence response to the Scrutinizer in `addresses_scrutinizer`.
 You will debate with "The Scrutinizer" (a strict biomechanics PhD). Stand your ground when appropriate.
 
-Respond in Korean (한국어로). Output JSON ONLY — schema is enforced.
+Respond in English. Output JSON ONLY — schema is enforced.
 """
 
 

@@ -357,10 +357,15 @@ def _ensure_phoenix_registered() -> bool:
             .rstrip("/")
             + "/v1/traces"
         )
+        # batch=True → BatchSpanProcessor(백그라운드 비동기 export). 기본 SimpleSpanProcessor 는
+        # span 종료마다 동기 HTTP export 로 호출 스레드를 막는다 → Cloud Run 에서 첫 ADK span
+        # export 가 블로킹되면 토론 전체가 멈춘다(실측: register 후 무음·rounds=0). 배치는 절대
+        # 호출 스레드를 막지 않아 토론이 끝까지 진행된다(P1 trace 는 백그라운드로 계속 송출).
         tracer_provider = register(
             project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
             endpoint=endpoint,
             headers={"authorization": f"Bearer {api_key}"},
+            batch=True,
         )
         GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
         _PHOENIX_REGISTERED = True
@@ -531,7 +536,7 @@ async def run_full_e2e(
     #    이벤트 루프를 막지 않게 별도 스레드에서 실행.
     pose_start = time.monotonic()
     pose_result = await asyncio.to_thread(
-        run_pose_extractor, video_uri, exercise_type, user_context
+        run_pose_extractor, video_uri, exercise_type, user_context, debate_id
     )
     pose_latency = time.monotonic() - pose_start
 
@@ -660,7 +665,7 @@ if __name__ == "__main__":
             "토론 라운드 ≥1": len(fs.debate.rounds) >= 1,
             "Mediator consensus 생성": bool(fs.mediator.consensus.strip()),
             "MCP tool 자동 호출": len(fs.mcp_tool_calls) >= 1,
-            "P5 의료 면책": "의학 조언" in fs.mediator.disclaimer,
+            "P5 의료 면책": "medical advice" in fs.mediator.disclaimer.lower(),
             "Firestore pose_data 저장": bool(snap and snap.get("pose_data")),
             "Firestore consensus 저장": bool(snap and snap.get("consensus")),
         }
@@ -710,7 +715,7 @@ if __name__ == "__main__":
             "토론 라운드 ≥1": len(fs.debate.rounds) >= 1,
             "Mediator consensus 생성": bool(fs.mediator.consensus.strip()),
             "MCP tool 자동 호출": len(fs.mcp_tool_calls) >= 1,
-            "P5 의료 면책": "의학 조언" in fs.mediator.disclaimer,
+            "P5 의료 면책": "medical advice" in fs.mediator.disclaimer.lower(),
             "Firestore consensus 저장": bool(snap and snap.get("consensus")),
             "Firestore status=feedback_pending": bool(
                 snap and snap.get("status") == "feedback_pending"

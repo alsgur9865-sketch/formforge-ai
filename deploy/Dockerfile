@@ -1,5 +1,5 @@
 # 파일 위치: deploy/Dockerfile
-# FormForge 메인앱 (Streamlit "Fight Card" UI) — Cloud Run `formforge-app` 서비스 (Day 14 Task 14.3).
+# FormForge 메인앱 (Streamlit "Diagnostic Freeze-Frame" UI) — Cloud Run `formforge-app` 서비스.
 #
 # 단일 컨테이너 전략: mcp/ 코드를 함께 담아 Mediator 가 컨테이너 안에서 MCP 를
 # stdio subprocess 로 실행(P4). 별도 MCP 서비스 불필요 — 코드 무변경.
@@ -21,11 +21,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# 1) 시스템 의존성 — opencv/mediapipe 런타임(libGL·libGLESv2·libEGL), 모델 다운로드용 curl
+# 1) 시스템 의존성 — opencv/mediapipe 런타임(libGL·libGLESv2·libEGL), 모델 다운로드용 curl,
+#    §8 스켈레톤 영상 H.264 인코딩용 ffmpeg (render_skeleton_video 가 PATH 의 ffmpeg 호출).
 #    mediapipe Tasks(vision) 가 OpenGL ES(libGLESv2.so.2)+EGL(libEGL.so.1) 를 dlopen 하므로
 #    libgl1 만으론 부족 → libgles2·libegl1 추가 (없으면 Live 분석에서 OSError: libGLESv2.so.2).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgl1 libglib2.0-0 libgles2 libegl1 curl \
+        libgl1 libglib2.0-0 libgles2 libegl1 curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # 2) 파이썬 의존성 먼저 (레이어 캐시 — 코드만 바뀌면 재설치 안 함)
@@ -40,7 +41,13 @@ COPY ui/ ./ui/
 COPY mcp/ ./mcp/
 COPY tests/sample_pose_data.json ./tests/sample_pose_data.json
 
-# 4) MediaPipe Pose 모델 (.gitignore — 빌드 시 다운로드). PoseExtractor Stage1 이 사용.
+# 4) 데모/렌더 자산 — 데모 히어로 프리즈프레임(data URI) + §8 포즈 오버레이 라벨용 Geist Mono ttf.
+#    이걸 안 COPY 하면: 데모 히어로가 빈 placeholder(영상도 .dockerignore 제외) + 라이브 라벨이 PIL 기본 비트맵폰트로 폴백.
+COPY data/demo_keyframe.jpg ./data/demo_keyframe.jpg
+COPY data/demo_skeleton.mp4 ./data/demo_skeleton.mp4
+COPY data/fonts/ ./data/fonts/
+
+# 5) MediaPipe Pose 모델 (.gitignore — 빌드 시 다운로드). PoseExtractor Stage1 이 사용.
 RUN mkdir -p data/models && \
     curl -sSL -o data/models/pose_landmarker_full.task \
       https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task

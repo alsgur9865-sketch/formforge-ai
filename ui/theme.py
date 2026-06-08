@@ -1,114 +1,170 @@
 # 파일 위치: ui/theme.py
-"""디자인 토큰 + 폰트 + Streamlit 페이지 셸 — "Fight Card" UI 시스템의 단일 진실원천.
+"""DESIGN.md "The Diagnostic Freeze-Frame" 디자인 시스템을 Streamlit에 주입.
 
-`ui/design_reference/README.md` 의 Design Tokens 섹션을 코드로 옮긴 것.
-색/폰트 값은 절대 변경 금지(코치 아이덴티티). 각 템플릿은 자기 `:root` 를 인라인으로
-들고 있지만(컴포넌트 iframe 격리 때문), 여기 TOKENS 는 파이썬 측(Streamlit 위젯 스타일,
-계산용)에서 동일 값을 참조하기 위한 사본이다.
+- 토큰(색·타이포·간격)은 DESIGN.md 단일 진실원과 일치.
+- 컴포넌트 클래스는 모두 `ff-` 프리픽스(Streamlit 내부 클래스와 충돌 방지).
+- 폰트: Cabinet Grotesk(Fontshare) / Geist · Geist Mono(Google Fonts) — CSS @import.
 """
-
 from __future__ import annotations
 
-# ---------------------------------------------------------------------------
-# 디자인 토큰 (hex) — README "Design Tokens" 와 1:1
-# ---------------------------------------------------------------------------
+import streamlit as st
 
-TOKENS: dict[str, str] = {
-    # ink / surfaces
-    "ink": "#111219",
-    "ink_trace": "#0E0F16",
-    "ink2": "#171922",
-    "panel": "#1A1D28",
-    "line": "#2A2D3A",
-    "line2": "#373B4C",
-    "hi": "#ECEAE2",
-    "mid": "#9A988C",
-    "dim": "#67655B",
-    # coaches / accents (아이덴티티 — 변경 금지)
-    "enc": "#37B36A",
-    "enc_soft": "#8FE0B0",
-    "scr": "#E8415C",
-    "scr_soft": "#F79DAC",
-    "gold": "#C9A24B",
-    "gold2": "#E2C57A",
-    "ember": "#E2672E",
-    "slate": "#6E7486",
-    # paper (scorecard / corner note)
-    "bone": "#EAE3D2",
-    "bone2": "#D8CFB8",
-    "bone_ink": "#2A2519",
-    "paper": "#ECE5D3",
+# DESIGN.md §3 컬러 토큰 — CSS 변수로 단일 정의
+_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&display=swap');
+
+:root{
+  --bg-base:#0B0E14; --bg-surface:#141A24; --bg-elevated:#1A2230;
+  --hairline:#222C3A; --strong:#2E3A4D;
+  --text:#E6EAF2; --muted:#8A93A6; --faint:#586073;
+  --enc:#F4A340; --enc-glow:rgba(244,163,64,.16);
+  --scr:#34D1C4; --scr-glow:rgba(52,209,196,.16);
+  --risk:#FF5C5C; --risk-glow:rgba(255,92,92,.18);
+  --good:#3DDC84; --good-glow:rgba(61,220,132,.16);
+  --warning:#FFC24B;
+  --vbg:#080B11;
 }
 
-# Google Fonts — Saira Condensed(헤드/이름) · Archivo(본문) · JetBrains Mono(라벨/데이터)
-FONTS_LINK = (
-    '<link rel="preconnect" href="https://fonts.googleapis.com">'
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-    '<link href="https://fonts.googleapis.com/css2?'
-    "family=Saira+Condensed:wght@500;600;700;800;900"
-    "&family=Archivo:wght@400;500;600;700;800"
-    "&family=JetBrains+Mono:wght@400;500;700&display=swap\" rel=\"stylesheet\">"
-)
+/* ---- Streamlit chrome ---- */
+.stApp{background:var(--bg-base)}
+#MainMenu,header[data-testid="stHeader"],footer{visibility:hidden;height:0}
+[data-testid="stToolbar"]{display:none}
+.block-container{max-width:1320px;padding-top:1.6rem;padding-bottom:5rem}
+section.main > div{gap:0}
+[data-testid="stVerticalBlock"]{gap:.7rem}
 
-# FormForge 마크 (struck spark / forge glyph) — stroke 색을 컨텍스트별로 교체
-def mark_svg(stroke: str = "#111219", size: int = 14) -> str:
-    """헤더 좌측 흰 라운드 사각형 안에 들어가는 forge 마크."""
-    return (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none">'
-        f'<path d="M3 14l6-2 2-6 3 9 2-3 5 2" stroke="{stroke}" stroke-width="2.2" '
-        f'stroke-linecap="round" stroke-linejoin="round"/></svg>'
-    )
+/* base type */
+html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
+.ff *{box-sizing:border-box}
+.ff-mono{font-family:'Geist Mono',monospace;font-variant-numeric:tabular-nums}
+.ff-micro{font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:var(--muted);font-weight:500}
 
+/* ---- brand / hero ---- */
+.ff-brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.ff-brand .glyph{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--enc),var(--scr));display:grid;place-items:center;color:#0B0E14;font-family:'Cabinet Grotesk';font-weight:800;font-size:17px}
+.ff-brand .wm{font-family:'Cabinet Grotesk';font-weight:800;font-size:18px;color:var(--text)}
+.ff-brand .wm span{color:var(--muted)}
+.ff-h1{font-family:'Cabinet Grotesk';font-weight:800;font-size:clamp(30px,4vw,46px);line-height:1.04;letter-spacing:-.03em;color:var(--text);margin:14px 0 10px}
+.ff-h1 .g{background:linear-gradient(90deg,var(--enc),var(--scr));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ff-lede{font-size:16px;color:var(--muted);max-width:660px;line-height:1.5}
 
-# P5 의료 면책 — 모든 분석 화면 푸터 필수 (절대 원칙 P5)
-DISCLAIMER_PRIMARY = "⚕ FOR INFORMATION ONLY — NOT MEDICAL ADVICE."
-DISCLAIMER_CLAUSE2 = (
-    "FORMFORGE ANALYZES MOVEMENT, NOT YOUR BODY. "
-    "STOP AND CONSULT A PROFESSIONAL IF YOU FEEL PAIN."
-)
-# 한국어 면책 (Mediator/PoseExtractor 가 실제 출력하는 문구와 동일 톤)
-DISCLAIMER_KO = "정보 제공용입니다. 의학적 조언이 아닙니다. 통증이나 부상이 있으면 전문가와 상담하세요."
+/* ---- tale of the tape ---- */
+.ff-tape{display:flex;align-items:center;gap:18px;padding:15px 20px;border:1px solid var(--hairline);border-radius:12px;background:var(--bg-elevated);flex-wrap:wrap;margin-bottom:14px}
+.ff-tape .ex{font-family:'Cabinet Grotesk';font-weight:800;font-size:19px;color:var(--text)}
+.ff-tape .sub{color:var(--muted);font-size:12px;font-family:'Geist Mono';margin-top:2px}
+.ff-tape .pill{margin-left:auto;font-family:'Geist Mono';font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--strong);color:var(--text)}
+.ff-tape .tension{display:flex;align-items:center;gap:9px;font-family:'Geist Mono';font-size:11px;color:var(--warning)}
+.ff-tbar{width:120px;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--enc),#3a3f4d 46%,#3a3f4d 54%,var(--scr));position:relative}
+.ff-tbar i{position:absolute;top:50%;width:3px;height:14px;background:var(--text);border-radius:2px;transform:translate(-50%,-50%);box-shadow:0 0 0 3px var(--bg-elevated)}
 
+/* ---- diagnostic viewer (hero) ---- */
+.ff-viewer{background:var(--vbg);border:1px solid #1d2530;border-radius:12px;position:relative;overflow:hidden;padding:0}
+.ff-viewer video,.ff-viewer img{display:block;width:100%;height:auto;object-fit:contain;background:#05070b}
+.ff-viewer video{max-height:520px}
+.ff-viewer img{max-height:700px}
+.ff-viewer .vchrome{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;font-family:'Geist Mono';font-size:10.5px;pointer-events:none;z-index:2}
+.ff-viewer .vchrome .l{color:#7a8597;letter-spacing:.06em}
+.ff-viewer .vchrome .r{color:var(--risk);display:flex;align-items:center;gap:6px}
+.ff-viewer .vchrome .r b{width:7px;height:7px;border-radius:50%;background:var(--risk);display:inline-block}
+.ff-viewer .vempty{aspect-ratio:16/11;display:grid;place-items:center;color:var(--faint);font-family:'Geist Mono';font-size:12px;background:repeating-linear-gradient(135deg,#0a0d13,#0a0d13 9px,#0c1017 9px,#0c1017 18px)}
+.ff-readout{border:1px solid var(--hairline);border-top:none;border-radius:0 0 12px 12px;background:var(--bg-surface);padding:13px 15px;margin-top:-4px}
+.ff-readout .row{display:flex;justify-content:space-between;align-items:baseline;font-family:'Geist Mono';font-size:12.5px;padding:4px 0}
+.ff-readout .row .k{color:var(--muted)} .ff-readout .row .v{color:var(--text)}
+.ff-score{font-family:'Cabinet Grotesk';font-weight:800;font-size:30px;line-height:1;color:var(--text)}
+.ff-score small{font-family:'Geist Mono';font-size:12px;color:var(--muted);font-weight:400}
+.ff-flags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 
-# ---------------------------------------------------------------------------
-# Streamlit 페이지 셸 — 1440px 고정폭 캔버스를 ink 배경에 레터박스 + 기본 chrome 숨김
-# ---------------------------------------------------------------------------
+/* ---- badges (의미색) ---- */
+.ff-badge{font-family:'Geist Mono';font-size:10.5px;padding:3px 8px;border-radius:6px;font-weight:500}
+.ff-badge.risk{color:var(--risk);background:var(--risk-glow);border:1px solid color-mix(in srgb,var(--risk) 35%,transparent)}
+.ff-badge.warning{color:var(--warning);background:color-mix(in srgb,var(--warning) 15%,transparent);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent)}
+.ff-badge.good{color:var(--good);background:var(--good-glow);border:1px solid color-mix(in srgb,var(--good) 35%,transparent)}
 
-def page_shell_css() -> str:
-    """st.markdown(unsafe_allow_html=True) 로 주입. 디자인이 1440px 고정폭이라
-    Streamlit 기본 패딩/헤더를 걷어내고 컴포넌트 iframe 을 ink 배경 위에 중앙 정렬한다."""
-    ink = TOKENS["ink"]
-    ink2 = TOKENS["ink2"]
-    line2 = TOKENS["line2"]
-    mid = TOKENS["mid"]
-    gold = TOKENS["gold"]
-    return f"""
-<style>
-  /* 전체 배경을 ink 로 (레터박스 느낌) */
-  .stApp {{ background:{ink}; }}
-  /* 기본 상단 헤더/툴바/푸터 숨김 */
-  header[data-testid="stHeader"] {{ background:transparent; height:0; }}
-  #MainMenu, footer, [data-testid="stToolbar"] {{ display:none; }}
-  /* 사이드바 접힘 시 '펼치기(›)' 버튼이 height:0 헤더에 가려지지 않도록 강제 노출 */
-  [data-testid="stSidebarCollapsedControl"],
-  [data-testid="collapsedControl"] {{ display:flex !important; visibility:visible !important;
-     position:fixed !important; top:8px; left:8px; z-index:100000; }}
-  /* 메인 블록 패딩 최소화 + 확대된 캔버스 수용 (max-width 해제, 가로 스크롤 허용) */
-  .block-container {{ padding:0.2rem 0.5rem 1rem; max-width:initial; }}
-  section.main > div {{ padding-top:0; }}
-  /* iframe(화면 캔버스) 중앙 정렬 — 좌우 여백 균등 레터박스 */
-  .block-container iframe {{ display:block; margin:0 auto; }}
-  /* 사이드바 톤을 디자인에 맞춤 */
-  section[data-testid="stSidebar"] {{ background:{ink2}; border-right:1px solid {line2};
-     transform:none !important; visibility:visible !important; margin-left:0 !important;
-     min-width:248px !important; width:248px !important; overflow:visible !important; }}
-  section[data-testid="stSidebar"] > div {{ width:248px !important; }}
-  section[data-testid="stSidebar"] * {{ color:{mid}; }}
-  section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
-  section[data-testid="stSidebar"] h3 {{ color:{gold}; font-family:'Saira Condensed',sans-serif;
-     text-transform:uppercase; letter-spacing:.14em; }}
-  /* 인터랙션 위젯 컨테이너 톤 */
-  div[data-testid="stExpander"] {{ border:1px solid {line2}; border-radius:6px; background:{ink2}; }}
+/* ---- debate feed ---- */
+.ff-feed-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ff-feed-scroll{max-height:620px;overflow-y:auto;padding-right:10px}
+.ff-feed-scroll::-webkit-scrollbar{width:6px}
+.ff-feed-scroll::-webkit-scrollbar-thumb{background:var(--strong);border-radius:3px}
+.ff-feed-scroll::-webkit-scrollbar-track{background:transparent}
+.ff-feed-head .t{font-family:'Cabinet Grotesk';font-weight:700;font-size:14px;color:var(--text)}
+.ff-dot{width:7px;height:7px;border-radius:50%;background:var(--scr);box-shadow:0 0 0 4px var(--scr-glow)}
+.ff-live{margin-left:auto;font-family:'Geist Mono';font-size:10px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 35%,transparent);padding:3px 8px;border-radius:999px}
+.ff-rounddiv{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
+.ff-rounddiv::before,.ff-rounddiv::after{content:"";flex:1;height:1px;background:var(--hairline)}
+.ff-rounddiv span{font-family:'Geist Mono';font-size:10px;color:var(--faint);letter-spacing:.1em;white-space:nowrap}
+.ff-msg{display:flex;gap:10px;margin-bottom:10px}
+@keyframes ffrise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.ff-msg .av{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-family:'Cabinet Grotesk';font-weight:800;font-size:13px;border:1px solid var(--hairline)}
+.ff-msg.enc .av{background:color-mix(in srgb,var(--enc) 14%,transparent);color:var(--enc);border-color:color-mix(in srgb,var(--enc) 35%,transparent)}
+.ff-msg.scr .av{background:color-mix(in srgb,var(--scr) 14%,transparent);color:var(--scr);border-color:color-mix(in srgb,var(--scr) 35%,transparent)}
+.ff-msg .b{flex:1;min-width:0}
+.ff-msg .nm{font-size:11px;font-family:'Geist Mono';color:var(--faint);margin-bottom:3px}
+.ff-msg.enc .nm b{color:var(--enc)} .ff-msg.scr .nm b{color:var(--scr)}
+.ff-bub{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:9px;padding:10px 12px;font-size:13.5px;line-height:1.5;color:var(--text)}
+.ff-msg.enc .ff-bub{border-left:2px solid var(--enc)}
+.ff-msg.scr .ff-bub{border-left:2px solid var(--scr)}
+.ff-bub .sub{color:var(--muted);font-size:12.5px;margin-top:4px}
+.ff-chip{display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono';font-size:10px;padding:2px 7px;border-radius:5px;margin-top:7px}
+.ff-chip.risk{color:var(--risk);background:var(--risk-glow)}
+.ff-chip.good{color:var(--good);background:var(--good-glow)}
+
+/* ---- mediator verdict ---- */
+.ff-verdict{border-radius:12px;padding:1px;background:linear-gradient(90deg,var(--enc),var(--scr));margin:6px 0}
+.ff-verdict-in{background:var(--bg-surface);border-radius:11px;padding:17px 19px}
+.ff-verdict .vh{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.ff-verdict .vh .lbl{font-family:'Cabinet Grotesk';font-weight:800;font-size:12px;letter-spacing:.12em;background:linear-gradient(90deg,var(--enc),var(--scr));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ff-verdict .vh .who{font-size:11px;color:var(--faint);font-family:'Geist Mono';margin-left:auto}
+.ff-verdict p{font-size:14.5px;line-height:1.5;margin-bottom:12px;color:var(--text)}
+.ff-checks{list-style:none;display:flex;flex-direction:column;gap:8px;margin:0 0 12px;padding:0}
+.ff-checks li{display:flex;gap:9px;font-size:13.5px;align-items:flex-start;color:var(--text)}
+.ff-checks .num{flex:none;width:18px;height:18px;border-radius:5px;background:var(--bg-elevated);border:1px solid var(--strong);display:grid;place-items:center;font-family:'Geist Mono';font-size:11px;color:var(--scr);margin-top:1px}
+.ff-checks .rat{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.ff-recall{font-family:'Geist Mono';font-size:11px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 30%,transparent);border-radius:7px;padding:8px 10px;margin-bottom:12px}
+.ff-disc{font-size:10.5px;color:var(--faint);line-height:1.45;border-top:1px solid var(--hairline);padding-top:10px}
+
+/* ---- trace strip ---- */
+.ff-trace{border:1px solid var(--hairline);border-radius:12px;background:var(--bg-elevated);padding:14px 18px;margin-top:14px}
+.ff-trace-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.ff-trace-head .t{font-family:'Cabinet Grotesk';font-weight:700;font-size:13px;color:var(--text)}
+.ff-trace-head .src{font-family:'Geist Mono';font-size:10.5px;color:var(--faint);margin-left:auto}
+.ff-span{display:grid;grid-template-columns:120px 1fr 56px;align-items:center;gap:12px;margin-bottom:8px;font-family:'Geist Mono';font-size:11.5px}
+.ff-span .lab{color:var(--muted);white-space:nowrap}
+.ff-track{position:relative;height:14px;background:color-mix(in srgb,var(--text) 5%,transparent);border-radius:5px}
+.ff-track .bar{position:absolute;top:0;bottom:0;border-radius:5px;opacity:.92}
+.ff-span .ms{text-align:right;color:var(--faint)}
+.ff-tracelink{display:inline-block;margin-top:8px;font-family:'Geist Mono';font-size:11px;color:var(--scr);text-decoration:none;border:1px solid color-mix(in srgb,var(--scr) 30%,transparent);border-radius:7px;padding:6px 10px}
+
+/* ---- persona drift ---- */
+.ff-drift{font-family:'Geist Mono';font-size:11px;color:var(--muted);margin-top:8px}
+.ff-drift b{color:var(--scr)}
+.ff-driftbar{display:flex;align-items:center;gap:8px;margin:6px 0}
+.ff-driftbar .name{width:104px;font-size:12px;color:var(--text)}
+.ff-driftbar .meter{flex:1;height:6px;border-radius:999px;background:var(--bg-elevated);border:1px solid var(--hairline);position:relative;overflow:hidden}
+.ff-driftbar .fill{position:absolute;top:0;bottom:0;left:0;border-radius:999px}
+.ff-driftbar .val{width:42px;text-align:right;font-family:'Geist Mono';font-size:11px;color:var(--muted)}
+
+/* ---- Streamlit widgets ---- */
+.stButton>button{font-family:'Geist';font-weight:500;border-radius:8px;border:1px solid var(--strong);background:var(--bg-surface);color:var(--text);transition:.15s}
+.stButton>button:hover{border-color:var(--text);color:var(--text)}
+div[data-testid="stFileUploader"]{background:var(--bg-surface);border:1px dashed var(--strong);border-radius:12px;padding:6px}
+.stSelectbox label,.stTextArea label,.stTextInput label{font-family:'Geist Mono';font-size:11px!important;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)!important}
+.stProgress > div > div > div{background:linear-gradient(90deg,var(--enc),var(--scr))}
 </style>
-{FONTS_LINK}
 """
+
+
+def apply_theme() -> None:
+    """앱 최상단에서 1회 호출 — CSS 주입."""
+    st.markdown(_CSS, unsafe_allow_html=True)
+
+
+def page_config() -> None:
+    """set_page_config — 반드시 첫 Streamlit 명령."""
+    st.set_page_config(
+        page_title="FormForge AI",
+        page_icon="🏋️",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )

@@ -328,12 +328,13 @@ async def run_debate(
             user_id=user_id,
         )
 
-        # 합의 감지 — 둘 중 하나라도 파싱 실패면 스킵
+        # 합의 감지 — Round 1 은 스킵(조기합의 방지: 두 코치가 같은 결함을 봐도 최소
+        # 2 라운드는 부딪히게). Round 2+ 부터, 둘 중 하나라도 파싱 실패면 스킵.
         verdict: ConvergenceVerdict | None = None
         verdict_latency = 0.0
         enc_concern = (round_result.encourager or {}).get("concern_one")
         scr_risk = ((round_result.scrutinizer or {}).get("primary_risk") or {}).get("name")
-        if enc_concern and scr_risk:
+        if round_n >= 2 and enc_concern and scr_risk:
             try:
                 verdict, verdict_latency = await judge_convergence(
                     encourager_concern=_short(enc_concern),

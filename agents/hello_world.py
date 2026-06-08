@@ -48,6 +48,7 @@ tracer_provider = register(
     project_name=PHOENIX_PROJECT,
     endpoint=PHOENIX_ENDPOINT.rstrip("/") + "/v1/traces",
     headers={"authorization": f"Bearer {PHOENIX_API_KEY}"},
+    batch=True,  # 비블로킹 export (동기 SimpleSpanProcessor 블로킹 방지 — orchestrator 참조)
 )
 GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 

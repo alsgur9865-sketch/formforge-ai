@@ -9,9 +9,9 @@
 #   gcloud artifacts repositories create formforge \
 #       --repository-format=docker --location=us-central1
 #
-# 시크릿(PHOENIX_API_KEY)은 여기 두지 않는다. 배포 후 1회:
-#   gcloud run services update formforge-app --region us-central1 \
-#       --update-secrets=PHOENIX_API_KEY=phoenix-api-key:latest
+# 시크릿(PHOENIX_API_KEY)은 여기 두지 않는다. 아래 deploy 가 --update-env-vars(병합)라
+# 서비스에 이미 주입된 키는 재배포 때 보존된다. 최초 1회만 주입:
+#   gcloud run services update formforge-app --region us-central1 --update-env-vars=PHOENIX_API_KEY=<값>
 #
 # 인증: Cloud Run 기본 SA 대신 권한이 갖춰진 formforge-sa 로 실행하려면 배포 인자에
 #   --service-account=formforge-sa@$PROJECT_ID.iam.gserviceaccount.com 추가.
@@ -60,9 +60,13 @@ steps:
       - --memory=4Gi
       - --cpu=2
       - --timeout=600
-      - --min-instances=1
+      # min-instances=0: 안 쓸 때 0으로 스케일다운 → 비용 $0(무료 티어 내). 파이프라인이
+      #   요청 안에서 동기 실행되므로 상주 인스턴스 불필요. 대가: 유휴 후 첫 요청 콜드스타트 ~20-40s.
+      - --min-instances=0
       - --session-affinity
-      - --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,VERTEX_AI_LOCATION=us-central1,PHOENIX_PROJECT_NAME=formforge-prod,PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/s/alsgur9865,FIRESTORE_DATABASE=(default)
+      # --update-env-vars(병합)로 둔다 — 서비스에 이미 주입된 PHOENIX_API_KEY(시크릿)를
+      # 재배포 때 보존(--set-env-vars 는 전체 교체라 매번 키를 날렸음, 세션15 부채).
+      - --update-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,VERTEX_AI_LOCATION=us-central1,PHOENIX_PROJECT_NAME=formforge-prod,PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/s/alsgur9865,FIRESTORE_DATABASE=(default)
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:${_TAG}

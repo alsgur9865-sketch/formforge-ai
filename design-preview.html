@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<!-- FormForge AI — Design System Preview v3 ("The Diagnostic Freeze-Frame", volumetric body) -->
+<!-- 일회용 프리뷰. 확인 후 삭제해도 됩니다. -->
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FormForge AI — Design System Preview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+  @import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&display=swap');
+
+  :root,[data-theme="dark"]{
+    --bg-base:#0B0E14; --bg-surface:#141A24; --bg-elevated:#1A2230;
+    --hairline:#222C3A; --strong:#2E3A4D;
+    --text:#E6EAF2; --muted:#8A93A6; --faint:#586073;
+    --enc:#F4A340; --enc-glow:rgba(244,163,64,.16);
+    --scr:#34D1C4; --scr-glow:rgba(52,209,196,.16);
+    --risk:#FF5C5C; --risk-glow:rgba(255,92,92,.18);
+    --good:#3DDC84; --good-glow:rgba(61,220,132,.16);
+    --warning:#FFC24B;
+    --shadow:0 1px 0 rgba(255,255,255,.03),0 10px 34px rgba(0,0,0,.5);
+  }
+  [data-theme="light"]{
+    --bg-base:#F4F6FB; --bg-surface:#FFFFFF; --bg-elevated:#FFFFFF;
+    --hairline:#E3E8F0; --strong:#CDD5E0;
+    --text:#10151F; --muted:#5C6678; --faint:#9AA3B2;
+    --enc:#C9781A; --enc-glow:rgba(201,120,26,.12);
+    --scr:#0E9E92; --scr-glow:rgba(14,158,146,.12);
+    --risk:#D8443D; --risk-glow:rgba(216,68,61,.12);
+    --good:#1E9E5A; --good-glow:rgba(30,158,90,.12);
+    --warning:#C98A12;
+    --shadow:0 1px 2px rgba(16,21,31,.04),0 12px 34px rgba(16,21,31,.09);
+  }
+  .viewer{--vbg:#080B11}
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg-base);color:var(--text);font-family:'Geist',system-ui,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;padding:0 0 96px;transition:background .3s,color .3s}
+  .wrap{max-width:1320px;margin:0 auto;padding:0 28px}
+  .display{font-family:'Cabinet Grotesk',sans-serif;font-weight:800;letter-spacing:-.02em}
+  .mono{font-family:'Geist Mono',monospace;font-variant-numeric:tabular-nums}
+  .micro{font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:var(--muted);font-weight:500}
+  h2.section{font-family:'Cabinet Grotesk';font-weight:700;font-size:22px;letter-spacing:-.01em;margin:0 0 4px}
+  .section-sub{color:var(--muted);font-size:13.5px;margin-bottom:22px}
+  code{font-family:'Geist Mono';font-size:.86em;background:color-mix(in srgb,var(--text) 8%,transparent);padding:1px 5px;border-radius:5px}
+
+  .topbar{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);background:color-mix(in srgb,var(--bg-base) 82%,transparent);border-bottom:1px solid var(--hairline)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .glyph{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--enc),var(--scr));display:grid;place-items:center;color:#0B0E14;font-family:'Cabinet Grotesk';font-weight:800;font-size:17px}
+  .brand .wm{font-family:'Cabinet Grotesk';font-weight:800;font-size:18px}
+  .brand .wm span{color:var(--muted)}
+  .toggle{font-family:'Geist Mono';font-size:12px;color:var(--text);background:var(--bg-surface);border:1px solid var(--strong);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .toggle:hover{border-color:var(--text)}
+
+  .hero{padding:60px 0 38px;border-bottom:1px solid var(--hairline)}
+  .hero .kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:20px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 4px var(--good-glow)}
+  .hero h1{font-family:'Cabinet Grotesk';font-weight:800;font-size:clamp(38px,5.4vw,64px);line-height:1.02;letter-spacing:-.03em;margin-bottom:18px}
+  .hero h1 .amp{background:linear-gradient(90deg,var(--enc),var(--scr));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p.lede{font-size:17.5px;color:var(--muted);max-width:660px;line-height:1.5}
+  .hero .meta{display:flex;gap:26px;margin-top:24px;flex-wrap:wrap}
+  .hero .meta div{display:flex;flex-direction:column;gap:3px}
+  .hero .meta b{font-family:'Cabinet Grotesk';font-weight:700;font-size:15px}
+
+  section{padding:50px 0;border-bottom:1px solid var(--hairline)}
+
+  .stage{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+  .tape{display:flex;align-items:center;gap:18px;padding:16px 22px;border-bottom:1px solid var(--hairline);background:var(--bg-elevated);flex-wrap:wrap}
+  .tape .ex{font-family:'Cabinet Grotesk';font-weight:800;font-size:19px}
+  .tape .sub{color:var(--muted);font-size:12px;font-family:'Geist Mono'}
+  .tape .pill{margin-left:auto;font-family:'Geist Mono';font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--strong)}
+  .tape .tension{display:flex;align-items:center;gap:9px;font-family:'Geist Mono';font-size:11px;color:var(--warning)}
+  .tbar{width:120px;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--enc),#3a3f4d 46%,#3a3f4d 54%,var(--scr));position:relative}
+  .tbar i{position:absolute;top:50%;left:68%;width:3px;height:14px;background:var(--text);border-radius:2px;transform:translate(-50%,-50%);box-shadow:0 0 0 3px var(--bg-elevated)}
+
+  .main{display:grid;grid-template-columns:1.05fr .95fr;gap:0}
+  .hero-col{padding:22px;border-right:1px solid var(--hairline)}
+  .feed-col{padding:18px 20px;background:var(--bg-base)}
+
+  .viewer{background:var(--vbg);border:1px solid #1d2530;border-radius:12px;position:relative;overflow:hidden}
+  .viewer .vignette{position:absolute;inset:0;background:radial-gradient(120% 92% at 50% 34%,transparent 42%,rgba(0,0,0,.62) 100%);pointer-events:none}
+  .viewer svg{display:block;width:100%;height:auto;position:relative}
+  .viewer .vlabel{position:absolute;top:12px;left:14px;font-family:'Geist Mono';font-size:10.5px;color:#7a8597;letter-spacing:.06em;z-index:2}
+  .viewer .vrec{position:absolute;top:12px;right:14px;font-family:'Geist Mono';font-size:10.5px;color:var(--risk);display:flex;align-items:center;gap:6px;z-index:2}
+  .viewer .vrec b{width:7px;height:7px;border-radius:50%;background:var(--risk);display:inline-block}
+  .viewer .vbtm{position:absolute;bottom:10px;left:14px;font-family:'Geist Mono';font-size:10px;color:#5a6573;z-index:2}
+  .framecap{display:flex;justify-content:space-between;align-items:center;margin-top:11px;font-family:'Geist Mono';font-size:11.5px;color:var(--muted)}
+  .framecap .legend{display:flex;gap:14px}
+  .framecap .legend span{display:flex;align-items:center;gap:6px}
+  .framecap .legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+  .feed-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .feed-head .t{font-family:'Cabinet Grotesk';font-weight:700;font-size:13px}
+  .feed-head .live{margin-left:auto;font-family:'Geist Mono';font-size:10px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 35%,transparent);padding:3px 8px;border-radius:999px}
+  .round-div{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
+  .round-div::before,.round-div::after{content:"";flex:1;height:1px;background:var(--hairline)}
+  .round-div span{font-family:'Geist Mono';font-size:10px;color:var(--faint);letter-spacing:.1em}
+  .msg{display:flex;gap:10px;margin-bottom:10px;animation:rise .2s ease-out}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg .av{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-family:'Cabinet Grotesk';font-weight:800;font-size:13px;border:1px solid var(--hairline)}
+  .msg.enc .av{background:color-mix(in srgb,var(--enc) 14%,transparent);color:var(--enc);border-color:color-mix(in srgb,var(--enc) 35%,transparent)}
+  .msg.scr .av{background:color-mix(in srgb,var(--scr) 14%,transparent);color:var(--scr);border-color:color-mix(in srgb,var(--scr) 35%,transparent)}
+  .msg .b{flex:1}
+  .msg .nm{font-size:11px;font-family:'Geist Mono';color:var(--faint);margin-bottom:3px}
+  .msg.enc .nm b{color:var(--enc)} .msg.scr .nm b{color:var(--scr)}
+  .msg .bub{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:9px;padding:10px 12px;font-size:13.5px;line-height:1.5}
+  .msg.enc .bub{border-left:2px solid var(--enc)}
+  .msg.scr .bub{border-left:2px solid var(--scr)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono';font-size:10px;padding:2px 7px;border-radius:5px;margin-top:7px}
+  .chip.risk{color:var(--risk);background:var(--risk-glow)}
+  .chip.good{color:var(--good);background:var(--good-glow)}
+
+  .verdict-wrap{padding:18px 22px;border-top:1px solid var(--hairline);background:var(--bg-elevated)}
+  .verdict{border-radius:12px;padding:1px;background:linear-gradient(90deg,var(--enc),var(--scr));max-width:760px;margin:0 auto}
+  .verdict-inner{background:var(--bg-surface);border-radius:11px;padding:17px 19px}
+  .vh{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .vh .lbl{font-family:'Cabinet Grotesk';font-weight:800;font-size:12px;letter-spacing:.12em;background:linear-gradient(90deg,var(--enc),var(--scr));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .vh .who{font-size:11px;color:var(--faint);font-family:'Geist Mono';margin-left:auto}
+  .verdict p{font-size:14px;line-height:1.5;margin-bottom:12px}
+  .checks{list-style:none;display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+  .checks li{display:flex;gap:9px;font-size:13px;align-items:flex-start}
+  .checks .box{flex:none;width:16px;height:16px;border-radius:5px;border:1px solid var(--strong);margin-top:1px;position:relative}
+  .checks .box.done{background:var(--good);border-color:var(--good)}
+  .checks .box.done::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid #07120c;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .recall{font-family:'Geist Mono';font-size:11px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 30%,transparent);border-radius:7px;padding:7px 10px;margin-bottom:12px;display:flex;gap:7px}
+  .disclaimer{font-size:10.5px;color:var(--faint);line-height:1.45;border-top:1px solid var(--hairline);padding-top:10px}
+
+  .trace{padding:15px 22px;border-top:1px solid var(--hairline)}
+  .trace-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+  .trace-head .t{font-family:'Cabinet Grotesk';font-weight:700;font-size:13px}
+  .trace-head .src{font-family:'Geist Mono';font-size:10.5px;color:var(--faint);margin-left:auto}
+  .span-row{display:grid;grid-template-columns:140px 1fr 56px;align-items:center;gap:12px;margin-bottom:8px;font-family:'Geist Mono';font-size:11.5px}
+  .span-row .lab{color:var(--muted)}
+  .span-track{position:relative;height:14px;background:color-mix(in srgb,var(--text) 5%,transparent);border-radius:5px}
+  .span-bar{position:absolute;top:0;bottom:0;border-radius:5px;opacity:.92}
+  .span-row .ms{text-align:right;color:var(--faint)}
+
+  .calib{padding:15px 22px;border-top:1px solid var(--hairline);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .calib .q{font-family:'Cabinet Grotesk';font-weight:700;font-size:13px;margin-right:4px}
+  .fbtn{font-family:'Geist';font-size:13px;font-weight:500;padding:8px 15px;border-radius:8px;border:1px solid var(--strong);background:var(--bg-surface);color:var(--text);cursor:pointer}
+  .fbtn.harsh:hover{border-color:var(--scr);color:var(--scr)}
+  .fbtn.soft:hover{border-color:var(--enc);color:var(--enc)}
+  .fbtn.perfect{border-color:color-mix(in srgb,var(--good) 50%,transparent);color:var(--good)}
+  .drift{margin-left:auto;font-family:'Geist Mono';font-size:11px;color:var(--muted)}
+  .drift b{color:var(--scr)}
+
+  .specimen{display:grid;gap:18px}
+  .spec-card{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:12px;padding:22px 24px}
+  .tagrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+  .fn{font-family:'Geist Mono';font-size:11.5px;color:var(--muted)}
+  .t-display{font-family:'Cabinet Grotesk';font-weight:800;font-size:44px;letter-spacing:-.025em;line-height:1.02}
+  .t-body{font-size:16px;line-height:1.6;max-width:62ch}
+  .t-body .m{color:var(--muted)}
+  .data-table{width:100%;border-collapse:collapse;font-family:'Geist Mono';font-size:13px}
+  .data-table th{text-align:left;color:var(--faint);font-weight:400;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:8px 10px;border-bottom:1px solid var(--hairline)}
+  .data-table td{padding:9px 10px;border-bottom:1px solid var(--hairline);font-variant-numeric:tabular-nums}
+
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+  .sw{border:1px solid var(--hairline);border-radius:10px;overflow:hidden;background:var(--bg-surface)}
+  .sw .chip2{height:60px}
+  .sw .meta{padding:9px 11px}
+  .sw .nm{font-size:12.5px;font-weight:600}
+  .sw .hx{font-family:'Geist Mono';font-size:11px;color:var(--muted)}
+  .sw.grad .chip2{background:linear-gradient(90deg,var(--enc),var(--scr))}
+  .role-note{font-size:12px;color:var(--muted);margin:2px 0 26px}
+  .role-note b{color:var(--text)}
+  .components{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
+  .comp-card{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:12px;padding:20px}
+  .comp-card h4{font-family:'Cabinet Grotesk';font-weight:700;font-size:13px;margin-bottom:14px;color:var(--muted)}
+  .btn{font-family:'Geist';font-size:14px;font-weight:500;padding:9px 18px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .btn.primary{background:linear-gradient(90deg,var(--enc),var(--scr));color:#0B0E14;font-weight:600}
+  .btn.secondary{background:var(--bg-elevated);border-color:var(--strong);color:var(--text)}
+  .btn.ghost{background:transparent;color:var(--muted)}
+  .row-gap{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .badge{font-family:'Geist Mono';font-size:11px;padding:3px 9px;border-radius:6px}
+  .badge.risk{color:var(--risk);background:var(--risk-glow);border:1px solid color-mix(in srgb,var(--risk) 35%,transparent)}
+  .badge.warning{color:var(--warning);background:color-mix(in srgb,var(--warning) 15%,transparent);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent)}
+  .badge.good{color:var(--good);background:var(--good-glow);border:1px solid color-mix(in srgb,var(--good) 35%,transparent)}
+  .field{display:block;width:100%;background:var(--bg-base);border:1px solid var(--strong);border-radius:6px;padding:10px 12px;color:var(--text);font-family:'Geist';font-size:14px}
+  .field::placeholder{color:var(--faint)}
+  .field:focus{outline:none;border-color:var(--scr);box-shadow:0 0 0 3px var(--scr-glow)}
+
+  .scale-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:28px}
+  .scale-row .u{text-align:center}
+  .scale-row .bar{background:linear-gradient(180deg,var(--enc),var(--scr));border-radius:4px;width:30px}
+  .scale-row .u span{display:block;font-family:'Geist Mono';font-size:10.5px;color:var(--muted);margin-top:6px}
+  .radii{display:flex;gap:16px;flex-wrap:wrap}
+  .radii .r{width:74px;height:74px;background:var(--bg-elevated);border:1px solid var(--strong);display:grid;place-items:flex-end;justify-content:center}
+  .radii .r span{font-family:'Geist Mono';font-size:10px;color:var(--muted);padding-bottom:6px}
+  .foot{padding:34px 0 0;color:var(--faint);font-size:12px;font-family:'Geist Mono'}
+
+  @media(max-width:900px){
+    .main{grid-template-columns:1fr}
+    .hero-col{border-right:none;border-bottom:1px solid var(--hairline)}
+    .components{grid-template-columns:1fr}
+    .span-row{grid-template-columns:110px 1fr 50px}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <div class="brand"><div class="glyph">F</div><div class="wm">FormForge <span>AI</span></div></div>
+  <button class="toggle" onclick="t()">◐ <span id="tlabel">LIGHT MODE</span></button>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="kicker"><span class="dot"></span><span class="micro">Design System v3 · The Diagnostic Freeze-Frame</span></div>
+  <h1>The argument happens<br>on your body<span class="amp">.</span></h1>
+  <p class="lede">영웅은 주석 달린 당신의 프리즈프레임 — 스켈레톤과 플래그된 각도가 몸 위에 그어집니다. 두 코치는 같은 몸을 두고 갈리고, 화면이 그 긴장을 하나의 판결로 녹여냅니다. 스포츠과학 랩 리포트의 신뢰 위에 라이브 토론의 드라마.</p>
+  <div class="meta">
+    <div><span class="micro">Display</span><b>Cabinet Grotesk</b></div>
+    <div><span class="micro">Body / Data</span><b>Geist · tabular</b></div>
+    <div><span class="micro">Clinical / Trace</span><b>Geist Mono</b></div>
+    <div><span class="micro">색 = 의미</span><b>Risk ▲ vs Good ✓</b></div>
+  </div>
+</div></header>
+
+<!-- ============ SIGNATURE ============ -->
+<section><div class="wrap">
+  <h2 class="section">The Diagnostic Freeze-Frame</h2>
+  <p class="section-sub">시그니처 — 영웅(좌)은 rep 바닥 순간의 주석 달린 몸(실제 제품에선 영상 프레임 위 오버레이), 토론(우)은 멈춘 split이 아니라 <b>하나의 격해지는 피드</b>. 두 코치가 <code>→ 무릎 플래그</code> 같은 동일 신체 지점을 두고 갈린다.</p>
+
+  <div class="stage">
+    <div class="tape">
+      <div>
+        <div class="ex">BARBELL BACK SQUAT</div>
+        <div class="sub">SET 2 · REP 4 · 92kg</div>
+      </div>
+      <div class="tension">TENSION HIGH<div class="tbar"><i></i></div></div>
+      <div class="pill mono">ROUND 2 / 3</div>
+    </div>
+
+    <div class="main">
+      <!-- HERO: diagnostic freeze-frame, volumetric body + tracking overlay -->
+      <div class="hero-col">
+        <div class="viewer">
+          <div class="vlabel">POSE · MediaPipe · 33 LM</div>
+          <div class="vrec"><b></b>REP 4 · BOTTOM</div>
+          <svg viewBox="0 0 340 384" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="vol" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#161b23"/>
+                <stop offset=".48" stop-color="#36404e"/>
+                <stop offset="1" stop-color="#1a2029"/>
+              </linearGradient>
+              <radialGradient id="head" cx="38%" cy="32%" r="72%">
+                <stop offset="0" stop-color="#3f4957"/>
+                <stop offset="1" stop-color="#181d25"/>
+              </radialGradient>
+              <radialGradient id="floor" cx="50%" cy="50%" r="50%">
+                <stop offset="0" stop-color="rgba(0,0,0,.6)"/>
+                <stop offset="1" stop-color="rgba(0,0,0,0)"/>
+              </radialGradient>
+            </defs>
+
+            <!-- floor shadow -->
+            <ellipse cx="170" cy="352" rx="98" ry="16" fill="url(#floor)"/>
+
+            <!-- barbell behind shoulders -->
+            <line x1="104" y1="92" x2="236" y2="92" stroke="#2b323d" stroke-width="7" stroke-linecap="round"/>
+            <circle cx="103" cy="92" r="13" fill="#1d232c" stroke="#2b323d" stroke-width="2"/>
+            <circle cx="237" cy="92" r="13" fill="#1d232c" stroke="#2b323d" stroke-width="2"/>
+
+            <!-- BODY (volumetric capsules) -->
+            <g stroke-linecap="round" fill="none">
+              <!-- right leg (back) -->
+              <path d="M194,184 L188,258" stroke="url(#vol)" stroke-width="27"/>
+              <path d="M188,258 L220,340" stroke="url(#vol)" stroke-width="19"/>
+              <!-- left leg (front, flagged side) -->
+              <path d="M146,184 L152,258" stroke="url(#vol)" stroke-width="27"/>
+              <path d="M152,258 L120,340" stroke="url(#vol)" stroke-width="19"/>
+            </g>
+            <!-- torso -->
+            <path d="M134,102 C150,118 152,150 152,166 L146,186 L194,186 L188,166 C188,150 190,118 206,102 Z" fill="url(#vol)"/>
+            <!-- arms over shoulders -->
+            <g stroke-linecap="round" fill="none">
+              <path d="M134,102 L114,150" stroke="url(#vol)" stroke-width="15"/>
+              <path d="M114,150 L128,98" stroke="url(#vol)" stroke-width="12"/>
+              <path d="M206,102 L226,150" stroke="url(#vol)" stroke-width="15"/>
+              <path d="M226,150 L212,98" stroke="url(#vol)" stroke-width="12"/>
+              <!-- neck -->
+              <path d="M170,72 L170,100" stroke="url(#vol)" stroke-width="17"/>
+              <!-- feet -->
+              <path d="M120,340 L138,345" stroke="url(#vol)" stroke-width="11"/>
+              <path d="M220,340 L202,345" stroke="url(#vol)" stroke-width="11"/>
+            </g>
+            <!-- head -->
+            <circle cx="170" cy="52" r="20" fill="url(#head)"/>
+
+            <!-- rim sheen (front-lit volume highlight) -->
+            <g stroke="#5a6b7e" stroke-width="4" stroke-linecap="round" fill="none" opacity=".4">
+              <path d="M194,186 L188,256"/><path d="M146,186 L152,256"/>
+              <path d="M188,258 L218,336"/><path d="M152,258 L122,336"/>
+              <path d="M170,108 L170,180"/>
+            </g>
+
+            <!-- tracking connectors (subtle, on the body) -->
+            <g stroke="#9fb6cc" stroke-width="1.4" opacity=".28" fill="none" stroke-linecap="round">
+              <path d="M134,102 L206,102"/>
+              <path d="M170,100 L170,186"/>
+              <path d="M146,186 L194,186"/>
+              <path d="M194,186 L188,258 L220,340"/>
+              <path d="M146,186 L152,258 L120,340"/>
+              <path d="M134,102 L114,150 L128,98"/>
+              <path d="M206,102 L226,150 L212,98"/>
+            </g>
+            <!-- joint nodes (cyan tracking dots) -->
+            <g>
+              <g fill="#34D1C4" opacity=".16">
+                <circle cx="134" cy="102" r="6"/><circle cx="206" cy="102" r="6"/>
+                <circle cx="114" cy="150" r="6"/><circle cx="226" cy="150" r="6"/>
+                <circle cx="146" cy="186" r="6"/>
+                <circle cx="188" cy="258" r="6"/>
+                <circle cx="120" cy="340" r="6"/><circle cx="220" cy="340" r="6"/>
+              </g>
+              <g fill="#d8f6f4">
+                <circle cx="134" cy="102" r="3"/><circle cx="206" cy="102" r="3"/>
+                <circle cx="114" cy="150" r="3"/><circle cx="226" cy="150" r="3"/>
+                <circle cx="146" cy="186" r="3"/>
+                <circle cx="188" cy="258" r="3"/>
+                <circle cx="120" cy="340" r="3"/><circle cx="220" cy="340" r="3"/>
+              </g>
+            </g>
+
+            <!-- GOOD: depth marker at right hip -->
+            <circle cx="194" cy="186" r="9" fill="none" stroke="#3DDC84" stroke-width="2"/>
+            <circle cx="194" cy="186" r="3.4" fill="#3DDC84"/>
+            <g font-family="'Geist Mono',monospace">
+              <text x="210" y="180" fill="#3DDC84" font-size="12" font-weight="500">DEPTH</text>
+              <text x="210" y="197" fill="#3DDC84" font-size="15" font-weight="700">92° ✓</text>
+            </g>
+
+            <!-- RISK: knee valgus on left knee -->
+            <!-- ideal hip→ankle alignment (dashed) -->
+            <line x1="146" y1="186" x2="120" y2="340" stroke="#FF5C5C" stroke-width="1.4" stroke-dasharray="4 4" opacity=".5"/>
+            <!-- deviation arc -->
+            <path d="M150,238 A22,22 0 0,0 168,256" stroke="#FF5C5C" stroke-width="1.6" fill="none"/>
+            <!-- flagged knee node -->
+            <circle cx="152" cy="258" r="13" fill="#FF5C5C" opacity=".22"/>
+            <circle cx="152" cy="258" r="7" fill="#FF5C5C"/>
+            <circle cx="152" cy="258" r="2.8" fill="#fff"/>
+            <!-- label + leader -->
+            <line x1="112" y1="266" x2="146" y2="260" stroke="#FF5C5C" stroke-width="1.2"/>
+            <g font-family="'Geist Mono',monospace">
+              <text x="40" y="262" fill="#FF5C5C" font-size="12" font-weight="500">KNEE VALGUS</text>
+              <text x="40" y="280" fill="#FF5C5C" font-size="16" font-weight="700">14.2°</text>
+            </g>
+          </svg>
+          <div class="vbtm">TEMPO ecc 1.2s · BAR PATH dev 3.1cm</div>
+        </div>
+        <div class="framecap">
+          <span>Rep 4 — bottom of squat</span>
+          <span class="legend">
+            <span><i style="background:var(--risk)"></i>risk</span>
+            <span><i style="background:var(--good)"></i>good</span>
+            <span><i style="background:#34D1C4"></i>tracked joint</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- FEED: escalating debate -->
+      <div class="feed-col">
+        <div class="feed-head"><span class="dot" style="background:var(--scr)"></span><span class="t">Live Debate</span><span class="live">● ROUND 2</span></div>
+
+        <div class="round-div"><span>ROUND 1</span></div>
+        <div class="msg enc">
+          <div class="av">E</div>
+          <div class="b"><div class="nm"><b>The Encourager</b> · Certified PT</div>
+            <div class="bub">패러렐 깊이를 일관되게 찍고 있어요 — 대부분의 리프터가 못 하는 부분이에요. 무게도 이미 잘 다뤄요.
+              <span class="chip good">→ DEPTH 92° ✓</span></div></div>
+        </div>
+        <div class="msg scr">
+          <div class="av">S</div>
+          <div class="b"><div class="nm"><b>The Scrutinizer</b> · Physiologist, PhD</div>
+            <div class="bub">깊이는 인정. 하지만 하중 하 14° 무릎 외반은 문서화된 ACL 스트레스 벡터입니다. '괜찮은' 수준 아님.
+              <span class="chip risk">→ KNEE VALGUS 14.2° ▲</span></div></div>
+        </div>
+
+        <div class="round-div"><span>ROUND 2 — 격화</span></div>
+        <div class="msg enc">
+          <div class="av">E</div>
+          <div class="b"><div class="nm"><b>The Encourager</b></div>
+            <div class="bub">맞아요, 무릎은 짚고 가야죠. 근데 겁주지 말고 — 발끝 밖으로 미는 큐 하나면 잡혀요.</div></div>
+        </div>
+        <div class="msg scr">
+          <div class="av">S</div>
+          <div class="b"><div class="nm"><b>The Scrutinizer</b></div>
+            <div class="bub">큐로 충분치 않으면 증량을 멈춰야 합니다. 이심성 1.2s도 너무 빨라 — 통제력 상실 신호.
+              <span class="chip risk">→ TEMPO FAST</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- mediator verdict -->
+    <div class="verdict-wrap">
+      <div class="verdict"><div class="verdict-inner">
+        <div class="vh"><span class="lbl">VERDICT</span><span class="who">The Mediator · Head Coach</span></div>
+        <p>좋은 스쿼트, 우선순위 수정 하나. 깊이는 합격이니 이제 <b>무릎</b>을 잡읍시다 — 발끝 밖으로 밀고 하강을 2초로. 증량은 무릎 트래킹 잡은 뒤. 다음 세트 재촬영.</p>
+        <ul class="checks">
+          <li><span class="box done"></span>무릎을 발끝 라인 밖으로 트래킹</li>
+          <li><span class="box"></span>이심성(하강) 1.2s → 2.0s</li>
+          <li><span class="box"></span>다음 세트 측면 재촬영</li>
+        </ul>
+        <div class="recall">⟲ 과거 세션 3건 회상 — 당신의 2월 무릎 메모가 여전히 적용됨 <span style="color:var(--faint)">(Phoenix MCP)</span></div>
+        <div class="disclaimer">⚠️ 정보 제공용 분석이며 의학 조언이 아닙니다. 운동 중 통증·부상·지속적 불편이 있으면 운동을 중단하고 자격 있는 의료·피트니스 전문가와 상담하세요.</div>
+      </div></div>
+    </div>
+
+    <!-- trace -->
+    <div class="trace">
+      <div class="trace-head"><span class="dot" style="background:var(--scr)"></span><span class="t">Live Agent Trace</span><span class="src">Arize Phoenix · auto-instrumented · 2.21s</span></div>
+      <div class="span-row"><span class="lab">PoseExtractor</span><div class="span-track"><div class="span-bar" style="left:0;width:16%;background:var(--faint)"></div></div><span class="ms">340ms</span></div>
+      <div class="span-row"><span class="lab">Encourager</span><div class="span-track"><div class="span-bar" style="left:16%;width:35%;background:var(--enc)"></div></div><span class="ms">780ms</span></div>
+      <div class="span-row"><span class="lab">Scrutinizer</span><div class="span-track"><div class="span-bar" style="left:16%;width:52%;background:var(--scr)"></div></div><span class="ms">1148ms</span></div>
+      <div class="span-row"><span class="lab">Mediator</span><div class="span-track"><div class="span-bar" style="left:68%;width:32%;background:linear-gradient(90deg,var(--enc),var(--scr))"></div></div><span class="ms">718ms</span></div>
+    </div>
+
+    <!-- calibration -->
+    <div class="calib">
+      <span class="q">이 판결, 어땠나요?</span>
+      <button class="fbtn harsh">너무 가혹했다</button>
+      <button class="fbtn perfect">완벽했다</button>
+      <button class="fbtn soft">너무 무르다</button>
+      <span class="drift">코치 보정 <b>4×</b> · Scrutinizer 가혹도 <b>−12%</b> · 당신만의 critic으로 진화 중</span>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ TYPOGRAPHY ============ -->
+<section><div class="wrap">
+  <h2 class="section">Typography</h2>
+  <p class="section-sub">폰트가 곧 캐릭터 — 계기판 권위(Cabinet Grotesk), 깔끔한 본문(Geist), 차가운 과학자의 목소리이자 <b>몸 위 각도 주석</b>(Geist Mono).</p>
+  <div class="specimen">
+    <div class="spec-card"><div class="tagrow"><span class="micro">Display / Hero · 워드마크 · 판결 라벨</span><span class="fn">Cabinet Grotesk 800</span></div><div class="t-display">Forge stronger form.</div></div>
+    <div class="spec-card"><div class="tagrow"><span class="micro">Body / UI</span><span class="fn">Geist 400 / 500</span></div><p class="t-body">The Encourager finds what you're doing right and builds on it. <span class="m">The Scrutinizer hunts the biomechanical fault the encouragement glossed over — and points at it, on your body. The Mediator holds both, weighs your history, and hands you one verdict you can act on before the next set.</span></p></div>
+    <div class="spec-card"><div class="tagrow"><span class="micro">Data / Clinical · 몸 위 각도 주석 · Trace</span><span class="fn">Geist Mono · tabular-nums</span></div>
+      <table class="data-table"><thead><tr><th>JOINT</th><th>ANGLE</th><th>TEMPO</th><th>RISK</th></tr></thead>
+      <tbody>
+        <tr><td>Knee (L)</td><td>14.2°</td><td>1.2s</td><td style="color:var(--risk)">ACL ▲</td></tr>
+        <tr><td>Hip</td><td>92.0°</td><td>1.2s</td><td style="color:var(--good)">OK ✓</td></tr>
+        <tr><td>Ankle</td><td>38.5°</td><td>—</td><td style="color:var(--warning)">DORSI</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ COLOR ============ -->
+<section><div class="wrap">
+  <h2 class="section">Color</h2>
+  <p class="section-sub">색이 <b>의미</b>에 묶인다 — 헤드라인은 클리셰 amber/teal 장식이 아니라 몸 위 risk/good. 페르소나 hue는 2차(아바타·버블 액센트).</p>
+  <div class="swatches">
+    <div class="sw"><div class="chip2" style="background:#0B0E14"></div><div class="meta"><div class="nm">bg-base</div><div class="hx">#0B0E14</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#141A24"></div><div class="meta"><div class="nm">bg-surface</div><div class="hx">#141A24</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#1A2230"></div><div class="meta"><div class="nm">bg-elevated</div><div class="hx">#1A2230</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#FF5C5C"></div><div class="meta"><div class="nm">risk / 부상 플래그</div><div class="hx">#FF5C5C</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#3DDC84"></div><div class="meta"><div class="nm">good / 안전</div><div class="hx">#3DDC84</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#FFC24B"></div><div class="meta"><div class="nm">caution</div><div class="hx">#FFC24B</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#F4A340"></div><div class="meta"><div class="nm">Encourager (2차)</div><div class="hx">#F4A340</div></div></div>
+    <div class="sw"><div class="chip2" style="background:#34D1C4"></div><div class="meta"><div class="nm">Scrutinizer (2차)</div><div class="hx">#34D1C4</div></div></div>
+    <div class="sw grad"><div class="chip2"></div><div class="meta"><div class="nm">Mediator 종합</div><div class="hx">amber → teal</div></div></div>
+  </div>
+  <p class="role-note"><b>위계</b>: 베이스(다크 진단 뷰어) → 몸 위 의미색(risk/good/caution)이 1차 → 페르소나 hue(amber/teal)는 누가 말하는지만 표시하는 2차 → Mediator 그라데이션이 종합을 닫음.</p>
+  <div class="components">
+    <div class="comp-card"><h4>BUTTONS &amp; BADGES</h4>
+      <div class="row-gap"><button class="btn primary">Analyze form</button><button class="btn secondary">Upload video</button><button class="btn ghost">Skip</button></div>
+      <div class="row-gap"><span class="badge risk">▲ INJURY RISK</span><span class="badge warning">TEMPO FAST</span><span class="badge good">DEPTH OK ✓</span></div>
+    </div>
+    <div class="comp-card"><h4>INPUT</h4>
+      <input class="field" placeholder="운동 이름을 입력하세요…">
+      <div style="height:12px"></div>
+      <input class="field" value="Barbell Back Squat" style="border-color:var(--scr)">
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ SPACING / RADIUS ============ -->
+<section style="border-bottom:none"><div class="wrap">
+  <h2 class="section">Spacing &amp; Radius</h2>
+  <p class="section-sub">4px 베이스, 8px 리듬. comfortable-compact 밀도. 크리스프 코너 = 엔지니어링(균일 버블 금지).</p>
+  <div class="scale-row">
+    <div class="u"><div class="bar" style="height:4px"></div><span>4</span></div>
+    <div class="u"><div class="bar" style="height:8px"></div><span>8</span></div>
+    <div class="u"><div class="bar" style="height:12px"></div><span>12</span></div>
+    <div class="u"><div class="bar" style="height:16px"></div><span>16</span></div>
+    <div class="u"><div class="bar" style="height:24px"></div><span>24</span></div>
+    <div class="u"><div class="bar" style="height:32px"></div><span>32</span></div>
+    <div class="u"><div class="bar" style="height:48px"></div><span>48</span></div>
+    <div class="u"><div class="bar" style="height:64px"></div><span>64</span></div>
+  </div>
+  <div class="radii">
+    <div class="r" style="border-radius:6px"><span>6 · badge</span></div>
+    <div class="r" style="border-radius:8px"><span>8 · card</span></div>
+    <div class="r" style="border-radius:12px"><span>12 · panel</span></div>
+    <div class="r" style="border-radius:999px;width:120px"><span>999 · pill</span></div>
+  </div>
+  <div class="foot">FormForge AI · The Diagnostic Freeze-Frame · 일회용 프리뷰 — 확인 후 design-preview.html 삭제 가능</div>
+</div></section>
+
+<script>
+  function t(){var r=document.documentElement,d=r.getAttribute('data-theme')==='dark';r.setAttribute('data-theme',d?'light':'dark');document.getElementById('tlabel').textContent=d?'DARK MODE':'LIGHT MODE';}
+</script>
+</body>
+</html>

@@ -63,6 +63,7 @@ def _ensure_phoenix_registered() -> bool:
             project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
             endpoint=endpoint,
             headers={"authorization": f"Bearer {api_key}"},
+            batch=True,  # 비블로킹 export (동기 SimpleSpanProcessor 블로킹 방지 — orchestrator 참조)
         )
         _PHOENIX_REGISTERED = True
         return True

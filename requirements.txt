@@ -1,15 +1,23 @@
-google-adk>=1.0.0
-google-genai>=1.0.0
-google-cloud-firestore>=2.18.0
-google-cloud-storage>=2.18.0
-google-cloud-aiplatform>=1.70.0
+# ⚠️ google AI/추적 스택은 == 로 핀 고정한다.
+#   이유: 이 stack 은 빠르게 릴리스되고 메이저 변경이 잦다. >= 로 두면 빌드 시점마다
+#   다른(최신) 버전이 설치돼 Cloud Run 에서만 깨진다.
+#   실측(2026-06-06): >= 로 빌드하니 google-genai 2.8.0 + google-adk 2.2.0(당일 최신)이
+#   설치돼 Vertex ADK 토론(ParallelAgent 동시호출)이 register 직후 무한 hang.
+#   로컬 검증 버전(아래)에서는 로컬·Vertex 모두 e2e 완주. → 검증된 버전으로 고정.
+google-adk==2.1.0
+google-genai==1.75.0
+google-cloud-aiplatform==1.154.0
+openinference-instrumentation-google-adk==0.1.15
+arize-phoenix-otel==0.16.1
+arize-phoenix-client==2.7.0
+google-cloud-firestore==2.27.0
+google-cloud-storage==3.10.1
+# --- 아래는 Cloud Run 에서 정상 동작 확인됨(pose/Firestore/UI). 범위 지정 유지. ---
 mediapipe>=0.10.18
 numpy>=1.26.0
 opencv-python>=4.10.0
+Pillow>=10.0.0
 scipy>=1.13.0
-arize-phoenix-otel>=0.6.0
-arize-phoenix-client>=2.0.0
-openinference-instrumentation-google-adk>=0.1.0
 mcp>=1.0.0
 fastmcp>=2.0.0
 streamlit>=1.39.0

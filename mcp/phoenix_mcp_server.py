@@ -87,6 +87,7 @@ try:
                 project_name=os.getenv("PHOENIX_PROJECT_NAME", "formforge-prod"),
                 endpoint=_endpoint.rstrip("/") + "/v1/traces",
                 headers={"authorization": f"Bearer {_api_key}"},
+                batch=True,  # 비블로킹 export (동기 SimpleSpanProcessor 블로킹 방지 — orchestrator 참조)
             )
         _PHOENIX_READY = True
         _log("Phoenix 계측 등록 완료 — tool 호출이 Phoenix Cloud 에 기록됩니다.")
