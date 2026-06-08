@@ -2,7 +2,7 @@
 """
 Task 8.1 Acceptance Criteria 검증.
 
-Acceptance (TASKS.md Task 8.1):
+Acceptance (Task 8.1):
   [✓] 일반적인 영상은 2 라운드 안에 합의 (`converged: true`)
   [✓] 명백히 불일치하는 입력은 3 라운드까지 가도 의견 차이 유지 (별도 케이스)
   [✓] 라운드별 메시지가 Phoenix trace 에 명확히 구분됨
@@ -195,15 +195,15 @@ async def main_acceptance() -> DebateResult:
     else:
         _ok(f"latency = {result.total_latency_seconds:.1f}s")
 
-    # ---- 검증 6: TASKS.md "일반 영상은 2 라운드 안에 합의" ----
+    # ---- 검증 6: "일반 영상은 2 라운드 안에 합의" ----
     # 단, 합의 감지 LLM variance 로 fail 가능 → soft 검증
-    print(f"\n[6] 합의 도달 여부 (TASKS.md acceptance)")
+    print(f"\n[6] 합의 도달 여부 (acceptance)")
     if result.converged:
         if result.converged_at_round and result.converged_at_round <= 2:
             _ok(f"Round {result.converged_at_round} 에 합의 도달 (shared_issue={result.shared_issue})")
         else:
             _warn(
-                f"Round {result.converged_at_round} 에 합의 — TASKS.md 의 '2 라운드 안' 보다 늦지만 합의는 됨."
+                f"Round {result.converged_at_round} 에 합의 — '2 라운드 안' 기준보다 늦지만 합의는 됨."
             )
     else:
         _warn(

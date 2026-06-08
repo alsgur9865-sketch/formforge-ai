@@ -10,7 +10,7 @@
   - 모델: gemini-2.5-flash (1~2초 빠른 분류, low cost)
     ※ Day 13 의 LLM-as-a-Judge (gemini-3.5-flash) 와 별개. 그건 토론 품질 평가용.
   - 출력: ConvergenceVerdict (converged + shared_issue + reason)
-  - Phoenix 자동 계측이 이 호출도 별도 span 으로 기록 (TASKS.md acceptance criteria)
+  - Phoenix 자동 계측이 이 호출도 별도 span 으로 기록 (acceptance criteria)
 
 호출 시점:
   - Round N 종료 후, Mediator 호출하기 전
@@ -88,7 +88,7 @@ _client: genai.Client | None = None
 
 
 def _get_client() -> genai.Client:
-    """Vertex AI 모드 우선 (PROGRESS.md 세션 4 의 RESOURCE_EXHAUSTED 회피 패턴)."""
+    """Vertex AI 모드 우선 (세션 4 의 RESOURCE_EXHAUSTED 회피 패턴)."""
     global _client
     if _client is not None:
         return _client
@@ -137,7 +137,7 @@ async def judge_convergence(
         user_msg["extra_context"] = extra_context
 
     # 명시적 OTel span — judge_convergence 호출이 Phoenix Cloud 에 LLM span 으로 기록됨
-    # (TASKS.md Task 8.1 acceptance: "합의 판정 LLM call 도 trace 에 별도 span 으로 기록").
+    # (Task 8.1 acceptance: "합의 판정 LLM call 도 trace 에 별도 span 으로 기록").
     # GoogleADKInstrumentor 는 ADK Runner 호출만 잡고 google-genai 직접 호출은 미커버.
     user_msg_str = json.dumps(user_msg, ensure_ascii=False)
     with _tracer.start_as_current_span(

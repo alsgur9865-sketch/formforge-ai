@@ -1,6 +1,6 @@
 # 파일 위치: agents/pose_extractor.py
 """
-PoseExtractor — 2-stage 통합 (ARCHITECTURE.md §2.1, TASKS.md Task 5.1).
+PoseExtractor — 2-stage 통합 (ARCHITECTURE.md §2.1, Task 5.1).
 
 파이프라인:
   Stage 1 (agents/pose_mediapipe.py): MediaPipe + NumPy 정량 측정

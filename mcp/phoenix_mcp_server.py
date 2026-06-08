@@ -336,7 +336,7 @@ def _query_past_debates_impl(
                 "source": source,
                 "phoenix_status": phoenix_status,
                 "error": f"{type(exc).__name__}: {exc}",
-                "hint": "복합 인덱스(user_id+exercise_type+created_at) 미생성일 수 있음 — PROGRESS.md 참조",
+                "hint": "복합 인덱스(user_id+exercise_type+created_at) 미생성일 수 있음",
                 "phoenix_traces": phoenix_traces,  # Firestore 실패해도 Phoenix trace 는 살림
                 "past_debates": [],
                 "disclaimer": MEDICAL_DISCLAIMER,

@@ -19,9 +19,9 @@ Multi-round Adversarial Debate Loop — Day 8 Task 8.1.
   - Round N>=2 도 ParallelAgent 패턴 유지 (각 라운드 안에서는 두 에이전트가 동시).
     상대 직전 argument 는 user message 에 JSON payload 로 전달.
   - 라운드별로 별도 Runner 호출 → Phoenix trace 가 라운드별로 분리됨
-    (TASKS.md acceptance: "라운드별 메시지가 Phoenix trace에 명확히 구분됨")
+    (acceptance: "라운드별 메시지가 Phoenix trace에 명확히 구분됨")
   - 합의 감지는 evals.convergence_judge 의 별도 LLM 호출 → 별도 span
-    (TASKS.md acceptance: "합의 판정 LLM call도 trace에 별도 span으로 기록")
+    (acceptance: "합의 판정 LLM call도 trace에 별도 span으로 기록")
 
 ⚠️ ADK ParallelAgent deprecation: orchestrator.py 의 메모와 동일.
    Workflow API 전환은 Phoenix trace 그룹 구조 재검증 필요. Day 8 진행 중 이슈

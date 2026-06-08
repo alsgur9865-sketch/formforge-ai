@@ -2,7 +2,7 @@
 """
 The Mediator Agent — Head Coach (합의 통합 + P5 의료 면책).
 
-ARCHITECTURE.md §2.4 명세 구현 / TASKS.md Day 9 Task 9.1 (스켈레톤).
+ARCHITECTURE.md §2.4 명세 구현 (Day 9 Task 9.1, 스켈레톤).
 
 역할:
   Encourager(격려파)와 Scrutinizer(회의파)의 토론을 읽고, 사용자 컨텍스트

@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 # Phoenix register() 후 get_tracer 로 받으면 Phoenix Cloud 로 span 자동 송출.
 _tracer = trace.get_tracer("formforge.evals.llm_judge")
 
-_JUDGE_MODEL = "gemini-3.5-flash"  # Gemini 3 family 채택 시그널 (TASKS.md 13.2)
+_JUDGE_MODEL = "gemini-3.5-flash"  # Gemini 3 family 채택 시그널 (spec 13.2)
 # ⚠️ Gemini 3 family 는 현재 Vertex AI 의 `global` 엔드포인트에서만 서빙된다
 #    (us-central1 등 리전 엔드포인트는 404 NOT_FOUND — 세션 11 실측).
 #    그래서 judge 전용으로 location 을 global 로 오버라이드한다. 다른 모듈
