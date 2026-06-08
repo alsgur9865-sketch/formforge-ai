@@ -239,7 +239,7 @@ def build_mediator_input_payload(
 
 def _enforce_disclaimer(output: MediatorOutput) -> MediatorOutput:
     """
-    disclaimer 가 비었거나 핵심 키워드('의학 조언')가 없으면 표준 문구로 강제 교체.
+    disclaimer 가 비었거나 핵심 키워드('medical advice')가 없으면 표준 문구로 강제 교체.
     P5 절대원칙: 모든 결과에 의료 면책. LLM 변덕에 의존하지 않는다.
     """
     text = (output.disclaimer or "").strip()
@@ -572,7 +572,7 @@ if __name__ == "__main__":
             "MCP tool 1회 이상 호출 (trace 에 표시)": len(m_calls) >= 1,
             "합의안(consensus) 생성": bool(m_out.consensus.strip()),
             "priority_actions 1개 이상": len(m_out.priority_actions) >= 1,
-            "P5 의료 면책 포함": "의학 조언" in m_out.disclaimer,
+            "P5 의료 면책 포함": "medical advice" in m_out.disclaimer.lower(),
         }
         print("\n=== Acceptance (Task 12.2) ===")
         for name, ok in m_checks.items():
@@ -594,7 +594,7 @@ if __name__ == "__main__":
     checks = {
         "합의안(consensus) 생성": bool(output.consensus.strip()),
         "priority_actions 1개 이상": len(output.priority_actions) >= 1,
-        "P5 의료 면책 포함": "의학 조언" in output.disclaimer,
+        "P5 의료 면책 포함": "medical advice" in output.disclaimer.lower(),
         "round_count_used 정확": output.round_count_used == 1,
         "past_debate_references 빈 배열(9.1)": output.past_debate_references == [],
     }

@@ -665,7 +665,7 @@ if __name__ == "__main__":
             "토론 라운드 ≥1": len(fs.debate.rounds) >= 1,
             "Mediator consensus 생성": bool(fs.mediator.consensus.strip()),
             "MCP tool 자동 호출": len(fs.mcp_tool_calls) >= 1,
-            "P5 의료 면책": "의학 조언" in fs.mediator.disclaimer,
+            "P5 의료 면책": "medical advice" in fs.mediator.disclaimer.lower(),
             "Firestore pose_data 저장": bool(snap and snap.get("pose_data")),
             "Firestore consensus 저장": bool(snap and snap.get("consensus")),
         }
@@ -715,7 +715,7 @@ if __name__ == "__main__":
             "토론 라운드 ≥1": len(fs.debate.rounds) >= 1,
             "Mediator consensus 생성": bool(fs.mediator.consensus.strip()),
             "MCP tool 자동 호출": len(fs.mcp_tool_calls) >= 1,
-            "P5 의료 면책": "의학 조언" in fs.mediator.disclaimer,
+            "P5 의료 면책": "medical advice" in fs.mediator.disclaimer.lower(),
             "Firestore consensus 저장": bool(snap and snap.get("consensus")),
             "Firestore status=feedback_pending": bool(
                 snap and snap.get("status") == "feedback_pending"

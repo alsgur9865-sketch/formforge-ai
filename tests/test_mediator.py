@@ -49,14 +49,14 @@ def test_enforce_disclaimer_whitespace_is_replaced():
 
 
 def test_enforce_disclaimer_missing_keyword_is_replaced():
-    """'의학 조언' 키워드 없는 엉뚱한 문구 → 표준 문구로 교체 (LLM 변형 방어)."""
+    """'medical advice' 키워드 없는 엉뚱한 문구 → 표준 문구로 교체 (LLM 변형 방어)."""
     out = _enforce_disclaimer(_make_output("화이팅! 다음에도 열심히 해요."))
     assert out.disclaimer == MEDICAL_DISCLAIMER_KO
 
 
 def test_enforce_disclaimer_valid_is_kept():
     """핵심 키워드를 가진 정상 문구 → 그대로 유지."""
-    valid = "이 분석은 정보 제공용이며 의학 조언이 아닙니다. 전문가와 상담하세요."
+    valid = "This analysis is informational only and is not medical advice. Consult a professional."
     out = _enforce_disclaimer(_make_output(valid))
     assert out.disclaimer == valid
 
@@ -69,7 +69,7 @@ def test_default_disclaimer_is_p5_text():
         round_count_used=2,
     )
     assert out.disclaimer == MEDICAL_DISCLAIMER_KO
-    assert "의학 조언" in out.disclaimer
+    assert "medical advice" in out.disclaimer.lower()
 
 
 # --- 입력 페이로드 구조 -------------------------------------------------------

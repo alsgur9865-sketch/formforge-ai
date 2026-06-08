@@ -55,7 +55,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full system design including 
 
 ```bash
 # 1. Clone
-git clone https://github.com/<your-username>/formforge-ai
+git clone https://github.com/alsgur9865-sketch/formforge-ai
 cd formforge-ai
 
 # 2. Install (Python 3.11+)
@@ -63,11 +63,16 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# 3. Configure
+# 3. Download MediaPipe pose model (~9.4MB, git-ignored)
+mkdir -p data/models
+curl -L -o data/models/pose_landmarker_full.task \
+  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
+
+# 4. Configure
 cp .env.example .env
 # Edit .env: fill GOOGLE_CLOUD_PROJECT, GEMINI_API_KEY, PHOENIX_API_KEY, etc.
 
-# 4. Run locally
+# 5. Run locally
 streamlit run ui/streamlit_app.py
 ```
 
