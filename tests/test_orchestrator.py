@@ -146,7 +146,7 @@ async def main() -> int:
     )
 
     # ---- 검증 1: latency ----
-    # P50 목표 30s (TASKS.md Task 4.1 acceptance), hard fail 임계값 45s.
+    # P50 목표 30s (Task 4.1 acceptance), hard fail 임계값 45s.
     # Gemini Pro 2x 병렬 호출은 토큰/네트워크 variance 로 ±30% 흔들림.
     # 단발 30s 초과는 ⚠️ 경고만, 45s 초과는 ❌ fail.
     # Day 5 PoseExtractor (~5~10s) 합류 후엔 budget 재조정 필요.

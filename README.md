@@ -71,16 +71,7 @@ cp .env.example .env
 streamlit run ui/streamlit_app.py
 ```
 
-For Cloud Run deployment see [`deploy/`](./deploy/) and [`TASKS.md`](./TASKS.md) Day 14.
-
----
-
-## Project Documents
-
-- [`CLAUDE.md`](./CLAUDE.md) — Project constitution (rules & invariants)
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — Full technical specification
-- [`TASKS.md`](./TASKS.md) — Day-by-day implementation checklist
-- [`PROGRESS.md`](./PROGRESS.md) — Session-to-session handoff log
+For Cloud Run deployment see [`deploy/`](./deploy/).
 
 ---
 

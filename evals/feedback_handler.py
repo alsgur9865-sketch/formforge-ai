@@ -10,13 +10,13 @@
     → 4. Firestore persona_state 업데이트
     → 5. Phoenix 에 eval 결과 + Firestore evals 저장
 
-하이브리드 조정 (PROGRESS 세션 11 grill-me 확정):
+하이브리드 조정 (세션 11 grill-me 확정):
   - **enum 피드백 → 핵심 파라미터 delta 는 결정론적 룩업 테이블**로 확정.
     LLM 변동으로 acceptance 수치(too_harsh → 정확히 -0.15)가 깨지지 않게.
       Encourager warmth: too_warm=-0.10 / too_cold=+0.10 / perfect=0
       Scrutinizer harshness: too_harsh=-0.15 / too_soft=+0.10 / perfect=0
   - **detail 파라미터는 LLM judge 추천**(자유 텍스트 기반 정성 판단)을 사용.
-  - learning_rate 미적용 — delta 가 곧 최종 적용량 (TASKS.md acceptance 가 ground truth).
+  - learning_rate 미적용 — delta 가 곧 최종 적용량 (acceptance 가 ground truth).
   - 모든 값 [0.0, 1.0] clamp.
 
 페르소나 spec (ARCHITECTURE.md §6.1) — "perfect" 는 anchor (변화 없음).

@@ -2,7 +2,7 @@
 """
 Self-Improvement Loop 단위 테스트 — Day 13 Task 13.1/13.2 (Gemini/Firestore 없이 빠름).
 
-검증 범위 (결정론 코어 — TASKS.md Task 13.2 acceptance):
+검증 범위 (결정론 코어 — Task 13.2 acceptance):
   - too_harsh 1번 → scrutinizer.harshness 0.5 → 0.35  (정확히 -0.15)
   - too_soft  1번 → scrutinizer.harshness 0.5 → 0.60  (양방향 +0.10)
   - perfect        → 변화 없음 (anchor)
@@ -61,21 +61,21 @@ def _judge_with_detail(enc_detail_delta: float, scr_detail_delta: float) -> Judg
 # ---------------------------------------------------------------------------
 
 def test_too_harsh_lowers_harshness():
-    # TASKS.md acceptance 1: too_harsh → 0.5 → 0.35
+    # acceptance 1: too_harsh → 0.5 → 0.35
     new = apply_persona_adjustment(_base_state(), "perfect", "too_harsh")
     assert new["scrutinizer"]["harshness"] == 0.35, new
     print("  ✅ too_harsh: harshness 0.5 → 0.35 (-0.15)")
 
 
 def test_too_soft_raises_harshness():
-    # TASKS.md acceptance 2 (양방향): too_soft → 0.5 → 0.60
+    # acceptance 2 (양방향): too_soft → 0.5 → 0.60
     new = apply_persona_adjustment(_base_state(), "perfect", "too_soft")
     assert new["scrutinizer"]["harshness"] == 0.60, new
     print("  ✅ too_soft: harshness 0.5 → 0.60 (+0.10, 양방향)")
 
 
 def test_perfect_is_anchor():
-    # TASKS.md acceptance 3: perfect → 변화 없음 (judge_result=None → detail 도 불변)
+    # acceptance 3: perfect → 변화 없음 (judge_result=None → detail 도 불변)
     new = apply_persona_adjustment(_base_state(), "perfect", "perfect")
     assert new["scrutinizer"]["harshness"] == 0.5, new
     assert new["encourager"]["warmth"] == 0.5, new

@@ -151,7 +151,7 @@ track-bone:     #9FB6CC (opacity ~.30) /* 미세 연결선 */
 
 - 커스텀 CSS는 앱 상단 `st.markdown("<style>…</style>", unsafe_allow_html=True)` 1회 주입(토큰 = CSS 변수).
 - 버블/판결/배지 = `st.markdown` HTML 블록 + 토큰 클래스.
-- 폴링은 **`streamlit-autorefresh` 1초** (Firestore `on_snapshot()` 콜백 금지 — rerun 모델과 충돌. CLAUDE.md §4 준수).
+- 폴링은 **`streamlit-autorefresh` 1초** (Firestore `on_snapshot()` 콜백 금지 — rerun 모델과 충돌).
 - 포즈 영웅 = `st.image(signed_url)` (서버사이드 cv2/PIL 렌더 결과, §8).
 - 데모 청결: Streamlit 기본 메뉴/푸터 CSS로 숨김(`#MainMenu`, `footer`).
 
