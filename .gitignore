@@ -57,3 +57,8 @@ data/models/*.task
 
 # Claude Code local metadata (sessions, plans, locks)
 .claude/
+
+# 내부 개발 문서 (공개 리포에 불필요 — 전략·진행 메모. 로컬 보관)
+CLAUDE.md
+PROGRESS.md
+TASKS.md
