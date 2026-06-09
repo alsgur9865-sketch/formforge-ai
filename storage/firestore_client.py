@@ -224,15 +224,19 @@ def set_debate_pose_data(debate_id: str, pose_data: dict[str, Any]) -> None:
     })
 
 
-def set_debate_consensus(debate_id: str, consensus: dict[str, Any], trace_ids: dict[str, str]) -> None:
-    """Mediator 합의 결과 저장."""
+def set_debate_consensus(debate_id: str, consensus: dict[str, Any], trace_ids: dict[str, str],
+                         mcp_tool_calls: list[str] | None = None) -> None:
+    """Mediator 합의 결과 저장. mcp_tool_calls = Mediator 가 부른 Phoenix MCP 툴 목록(A 영수증용)."""
     db = _db_client()
-    db.collection("debates").document(debate_id).update({
+    updates: dict[str, Any] = {
         "consensus": consensus,
         "trace_ids": trace_ids,
         "status": "feedback_pending",
         "updated_at": datetime.now(timezone.utc),
-    })
+    }
+    if mcp_tool_calls is not None:
+        updates["mcp_tool_calls"] = mcp_tool_calls
+    db.collection("debates").document(debate_id).update(updates)
 
 
 def get_recent_debates(user_id: str, exercise_type: str | None = None, limit: int = 5) -> list[dict]:

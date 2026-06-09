@@ -22,7 +22,7 @@ from agents.pose_extractor import _overlay_spec  # noqa: E402  (라이브와 동
 from agents.pose_mediapipe import analyze_video  # noqa: E402
 from agents.pose_overlay import render_keyframe_overlay  # noqa: E402
 
-_VIDEO = _ROOT / "data" / "sample_videos" / "squat_demo.mp4"
+_VIDEO = _ROOT / "data" / "sample_videos" / "squat_front_demo.mp4"  # 정면 valgus 데모
 _OUT = _ROOT / "data" / "demo_keyframe.jpg"
 
 
@@ -38,8 +38,9 @@ def main() -> int:
         print("❌ rep/landmark 추출 실패", file=sys.stderr)
         return 1
 
-    # 패러렐(~90°)에 가장 가까운 rep 을 히어로로 — 인식 쉬운 진단 포즈 + readout(avg)과 일관.
-    hero = min(reps, key=lambda r: abs(r.depth_degrees - 90))
+    # 데모 헤드라인 = 깊이 편차. rep1/rep3 바닥은 앞으로 숙여 안 읽힘 → 정면으로 깨끗하게
+    # 보이는 얕은 rep2 를 히어로로(실측 insufficient_depth = 97°, 빨강 DEPTH 플래그).
+    hero = next((r for r in reps if r.rep_number == 2), reps[0])
 
     cap = cv2.VideoCapture(str(_VIDEO))
     cap.set(cv2.CAP_PROP_POS_MSEC, hero.bottom_timestamp_sec * 1000.0)
@@ -49,9 +50,9 @@ def main() -> int:
         print("❌ 프레임 seek 실패", file=sys.stderr)
         return 1
 
-    # squat_demo 에 실제 파이프라인이 잡는 flag = excessive_forward_lean (측면 가시·실측).
-    # 라이브와 동일한 _overlay_spec 으로 힙 강조 + 실측 LEAN/DEPTH 라벨 생성 (가짜 없음 — 전부 실데이터).
-    flag = {"issue": "excessive_forward_lean", "severity": "medium", "rep_numbers": [hero.rep_number]}
+    # 정면 영상 실측 flag = insufficient_depth (rep2 가 97° 로 얕음). _overlay_spec → 무릎 앵커
+    # + 빨강 'DEPTH 97°' (가짜 없음 — 전부 실데이터, 깊이 편차 헤드라인과 일치).
+    flag = {"issue": "insufficient_depth", "severity": "medium", "rep_numbers": [hero.rep_number]}
     rep = {"rep_number": hero.rep_number,
            "depth_degrees": hero.depth_degrees,
            "back_angle_at_bottom": hero.back_angle_at_bottom}

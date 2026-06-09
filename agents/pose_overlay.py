@@ -259,6 +259,74 @@ def _draw_skeleton_frame(
     cv2.addWeighted(overlay, 0.92, img, 0.08, 0, img)
 
 
+# ── 프레임별 실측 각도 (몸 위에 baked — 프레임마다 변동, '살아있는' 측정) ──
+#    DEPTH = 무릎 굴곡각(hip-knee-ankle). 분석(_process_frame)과 같은 _calc_angle 재사용
+#    → 영상 숫자 = 분석 숫자 (단일 진실원, 중복·거짓정밀 0).
+_HIP_L, _KNEE_L, _ANK_L = 23, 25, 27
+_HIP_R, _KNEE_R, _ANK_R = 24, 26, 28
+_SHO_L, _SHO_R = 11, 12
+
+
+def _angle_label(img: np.ndarray, anchor: tuple[int, int], text: str, scale: float,
+                 color: tuple[int, int, int] = _BGR_CORE) -> None:
+    """관절 옆 각도 텍스트 — 다크 아웃라인 + 컬러로 영상 위 가독성(cv2, 프레임당 경량).
+    cv2 Hershey 폰트는 '°'(U+00B0)를 못 그리므로(→'?'), 끝의 °는 떼어 작은 원으로 직접 그린다."""
+    deg = text.endswith("°")
+    base = text[:-1] if deg else text
+    fs = max(0.42, 0.6 * scale)
+    th = max(1, int(round(1.3 * scale)))
+    (tw, tht), _ = cv2.getTextSize(base, cv2.FONT_HERSHEY_DUPLEX, fs, th)
+    rr = max(2, int(round(2.2 * scale)))             # ° 반지름
+    rgap = max(2, int(round(3 * scale)))             # 숫자↔° 간격
+    total_w = tw + (rgap + 2 * rr + 2 if deg else 0)
+    ax, ay = anchor
+    gap = int(16 * scale)
+    tx = ax + gap if ax < img.shape[1] * 0.5 else ax - gap - total_w  # 관절 우측이면 라벨 좌측
+    ty = ay + tht // 2
+    tx = max(2, min(tx, img.shape[1] - total_w - 2))
+    ty = max(tht + 2, min(ty, img.shape[0] - 2))
+    cv2.putText(img, base, (tx, ty), cv2.FONT_HERSHEY_DUPLEX, fs, (8, 11, 17), th + 3, cv2.LINE_AA)
+    cv2.putText(img, base, (tx, ty), cv2.FONT_HERSHEY_DUPLEX, fs, color, th, cv2.LINE_AA)
+    if deg:
+        cx, cy = tx + tw + rgap + rr, ty - tht + rr  # 텍스트 상단 우측에 ° 원
+        cv2.circle(img, (cx, cy), rr + 1, (8, 11, 17), -1, cv2.LINE_AA)         # 다크 배킹
+        cv2.circle(img, (cx, cy), rr, color, max(1, int(round(1.2 * scale))), cv2.LINE_AA)
+
+
+def _draw_frame_angles(img: np.ndarray, pts: dict[int, tuple[int, int]],
+                       lm: list[tuple[float, float, float]], scale: float) -> None:
+    """이 프레임의 정규화 좌표에서 무릎 굴곡각(DEPTH)을 실측해 무릎 옆에 그림.
+    더 잘 보이는(visibility 높은) 다리를 선택. 가짜 임계값 색칠 없이 중립색(실측만)."""
+    from agents.pose_mediapipe import _calc_angle  # 분석과 동일 각도식 재사용(이미 로드됨)
+
+    def vec(i: int) -> tuple[np.ndarray, float] | None:
+        if i < 0 or i >= len(lm):
+            return None
+        x, y, v = lm[i]
+        return np.array([x, y], dtype=np.float64), v
+
+    kl, kr = vec(_KNEE_L), vec(_KNEE_R)
+    if kl is None and kr is None:
+        return
+    left = (kr is None) or (kl is not None and kl[1] >= kr[1])
+    hip_i, knee_i, ank_i = (_HIP_L, _KNEE_L, _ANK_L) if left else (_HIP_R, _KNEE_R, _ANK_R)
+    hp, kn, an = vec(hip_i), vec(knee_i), vec(ank_i)
+    if hp and kn and an and kn[1] >= _MIN_VIS and knee_i in pts:
+        depth = _calc_angle(hp[0], kn[0], an[0])
+        _angle_label(img, pts[knee_i], f"DEPTH {depth:.0f}°", scale)
+
+    # LEAN = 척추(어깨중점→엉덩이중점) vs 수직. 분석 _back_angle_vs_vertical 과 동일 식(수치 일치).
+    sl, sr, hl, hr = vec(_SHO_L), vec(_SHO_R), vec(_HIP_L), vec(_HIP_R)
+    if sl and sr and hl and hr and _HIP_L in pts and _HIP_R in pts:
+        spine = (sl[0] + sr[0]) / 2 - (hl[0] + hr[0]) / 2   # 엉덩이중점 → 어깨중점
+        vert = np.array([0.0, -1.0])                        # 이미지 y는 아래로 증가 → 위는 -y
+        cos = float(np.clip(np.dot(spine, vert) / (np.linalg.norm(spine) * np.linalg.norm(vert) + 1e-9), -1.0, 1.0))
+        lean = float(np.degrees(np.arccos(cos)))
+        hx = (pts[_HIP_L][0] + pts[_HIP_R][0]) // 2
+        hy = (pts[_HIP_L][1] + pts[_HIP_R][1]) // 2
+        _angle_label(img, (hx, hy), f"LEAN {lean:.0f}°", scale)
+
+
 def render_skeleton_video(
     video_path: str,
     frame_landmarks: list[tuple[int, list[tuple[float, float, float]]]],
@@ -330,7 +398,9 @@ def render_skeleton_video(
             if lm is not None:
                 crop = frame[y0:y1, x0:x1]
                 crop = cv2.resize(crop, (ow, oh), interpolation=cv2.INTER_AREA)
-                _draw_skeleton_frame(crop, transform(lm), flagged, scale)
+                pts = transform(lm)
+                _draw_skeleton_frame(crop, pts, flagged, scale)
+                _draw_frame_angles(crop, pts, lm, scale)  # 프레임별 실측 DEPTH 각도 baked
                 proc.stdin.write(crop.tobytes())
             idx += 1
     finally:

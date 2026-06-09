@@ -17,7 +17,7 @@ from agents.pose_mediapipe import analyze_video
 from agents.pose_overlay import render_skeleton_video
 
 _ROOT = Path(__file__).resolve().parent.parent
-SRC = _ROOT / "data" / "sample_videos" / "squat_demo.mp4"
+SRC = _ROOT / "data" / "sample_videos" / "squat_front_demo.mp4"  # 정면 valgus 데모(깊이 편차 스토리)
 OUT = _ROOT / "data" / "demo_skeleton.mp4"
 
 

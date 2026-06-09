@@ -30,6 +30,7 @@ from ui.theme import apply_theme, page_config  # noqa: E402
 from ui.components import debate_view as dv  # noqa: E402
 from ui.components import trace_view as tv  # noqa: E402
 from ui.components import feedback_form as fb  # noqa: E402
+from ui.components import hero as hero  # noqa: E402
 
 EXERCISES = ["squat", "deadlift", "pushup"]
 DONE = ("feedback_pending", "done")
@@ -104,31 +105,38 @@ def _persona_state(user_id: str) -> dict | None:
 
 # ----------------------------------------------------------------- header
 def _header() -> None:
-    st.markdown(
-        '<div class="ff-brand"><div class="glyph">F</div>'
-        '<div class="wm">FormForge <span>AI</span></div></div>',
-        unsafe_allow_html=True,
-    )
+    # DESIGN.md / Hero v2 topbar (brand + nav + ENGINE LIVE). 두 화면 공통.
+    st.markdown(hero.topbar_html(), unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------- screen: upload
 def screen_upload() -> None:
+    # 진단 그리드 배경(랜딩 전용) → topbar → 2단 히어로.
+    st.markdown(hero.field_html(), unsafe_allow_html=True)
     _header()
-    st.markdown(
-        '<div class="ff-h1">The argument happens<br>on your body<span class="g">.</span></div>'
-        '<div class="ff-lede">Upload a workout clip and two AI coaches debate your form in real time — '
-        'then a Head Coach settles it into a single verdict.</div>',
-        unsafe_allow_html=True,
-    )
     st.write("")
-    col, side = st.columns([1.4, 1])
-    with col:
+
+    # 좌: lede + 실제 업로드 위젯 + stats / 우: 캡처 쇼케이스(실제 스켈레톤 영상).
+    left, right = st.columns([0.86, 1.14], gap="large")
+    with left:
+        st.markdown(hero.hero_intro_html(), unsafe_allow_html=True)
         file = st.file_uploader("Workout video", type=["mp4", "mov", "avi", "mkv", "webm"])
         exercise = st.selectbox("Exercise", EXERCISES, format_func=str.title)
         injuries = st.text_input("Injury history (optional)", placeholder="e.g. left knee pain last year")
         experience = st.selectbox("Experience level", ["beginner", "intermediate", "advanced"], index=1)
-        start = st.button("⚡ Start analysis — summon both coaches", type="primary", disabled=file is None)
-        demo = st.button("Preview with sample data (no cloud needed)")
+        start = st.button("⚡ Run a diagnostic — summon both coaches", type="primary", disabled=file is None)
+        demo = st.button("Watch a teardown (sample · no cloud)")
+        st.markdown(hero.hero_stats_html(), unsafe_allow_html=True)
+    with right:
+        # 우측 영웅 = 우리 진짜 진단 프리즈프레임(스켈레톤·실측각도 baked) 우선.
+        # 없으면 움직이는 스켈레톤 영상, 둘 다 없으면 SVG 일러스트로 graceful fallback.
+        st.markdown(
+            hero.hero_capture_html(
+                image_url=_demo_keyframe_uri(),
+                video_url=_demo_skeleton_uri() or _demo_video_uri(),
+            ),
+            unsafe_allow_html=True,
+        )
 
     if demo:
         st.session_state["demo"] = True
@@ -237,7 +245,14 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
         st.markdown(dv.debate_feed(debate, stagger=demo), unsafe_allow_html=True)
 
     if debate.get("consensus"):
-        st.markdown(dv.verdict_html(debate.get("consensus")), unsafe_allow_html=True)
+        st.markdown(
+            dv.verdict_html(
+                debate.get("consensus"),
+                mcp_tool_calls=debate.get("mcp_tool_calls"),
+                trace_ids=debate.get("trace_ids"),
+            ),
+            unsafe_allow_html=True,
+        )
 
     st.markdown(
         tv.trace_strip(
@@ -251,6 +266,8 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     # 피드백 (P3) — 토론 완료 시
     if status in DONE or demo:
         st.write("")
+        # B: 검증된 자기개선 수치(+28%) 헤드라인 — 피드백 전/후 항상 노출(Arize thesis 증거).
+        st.markdown(fb.calibration_headline_html(), unsafe_allow_html=True)
         if st.session_state.get("fb_done"):
             st.success("Feedback applied — both coaches evolved a step toward you.")
             ps = fb.persona_drift_html(st.session_state.get("persona_after"))

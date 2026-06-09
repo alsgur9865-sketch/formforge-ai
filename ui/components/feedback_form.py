@@ -30,6 +30,44 @@ def _bar(name: str, value: float, color: str) -> str:
 </div>"""
 
 
+# ── B: 자기개선 "측정된" 헤드라인 — 세션17 Phoenix Experiment 실측(persona v1→v3) ──
+_ALIGN_BEFORE, _ALIGN_AFTER, _ALIGN_LIFT = "0.62", "0.795", "+28%"
+_PHOENIX_EXPERIMENT_URL = (
+    "https://app.phoenix.arize.com/s/alsgur9865/datasets/RGF0YXNldDoy/experiments"
+)
+
+
+def calibration_headline_html() -> str:
+    """검증된 정렬도 향상 배지 — 진짜 실측 수치(0.62→0.795). Arize 자기개선 thesis의 증거.
+    개인용 가짜 점수를 지어내지 않고, 인상적 숫자는 *실제 검증된* 실험 결과가 짊어진다."""
+    return (
+        '<div class="ff-cal-head">'
+        '<div class="lbl">SELF-IMPROVEMENT, MEASURED</div>'
+        '<div class="row">'
+        f'<span class="was">{_ALIGN_BEFORE}</span>'
+        '<span class="arr">→</span>'
+        f'<span class="now">{_ALIGN_AFTER}</span>'
+        f'<span class="lift">{_ALIGN_LIFT}</span>'
+        '</div>'
+        f'<a class="src" href="{_PHOENIX_EXPERIMENT_URL}" target="_blank" rel="noopener">'
+        'preference alignment · validated via Phoenix Experiments (persona v1→v3) ↗</a>'
+        '</div>'
+    )
+
+
+def _personalization_pct(enc: dict[str, Any], scr: dict[str, Any]) -> int | None:
+    """코치가 기본형(0.5)에서 얼마나 멀어졌나 = 평균 절대 드리프트 / 0.5 → 0~100%.
+    정직한 지표(가짜 alignment 점수 아님): 피드백이 움직이는 다이얼(warmth·harshness)만."""
+    dials = []
+    if enc.get("warmth") is not None:
+        dials.append(abs(enc["warmth"] - 0.5))
+    if scr.get("harshness") is not None:
+        dials.append(abs(scr["harshness"] - 0.5))
+    if not dials:
+        return None
+    return round((sum(dials) / len(dials)) / 0.5 * 100)
+
+
 def persona_drift_html(persona_state: dict[str, Any] | None) -> str:
     if not persona_state:
         return ""
@@ -41,13 +79,19 @@ def persona_drift_html(persona_state: dict[str, Any] | None) -> str:
         bars += _bar("Encourager · Warmth", enc["warmth"], "var(--enc)")
     if scr.get("harshness") is not None:
         bars += _bar("Scrutinizer · Harshness", scr["harshness"], "var(--scr)")
+    pct = _personalization_pct(enc, scr)
+    personalized = (
+        f'<div class="ff-drift">→ <b>{pct}% personalized</b> from the default coach</div>'
+        if pct is not None else ""
+    )
     return f"""
 <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--bg-surface);padding:16px 18px">
   <div class="ff-feed-head"><span class="ff-dot" style="background:var(--enc)"></span>
-    <span class="t">Persona Evolution</span>
-    <span class="ff-live" style="color:var(--muted);background:transparent;border-color:var(--strong)">{_esc(count)}× calibrated</span>
+    <span class="t">Your coaches, personalized</span>
+    <span class="ff-live" style="color:var(--muted);background:transparent;border-color:var(--strong)">{_esc(count)}× recalibrated</span>
   </div>
   {bars}
+  {personalized}
   <div class="ff-drift">As feedback accumulates, both coaches evolve into <b>your own critic</b>.</div>
 </div>"""
 

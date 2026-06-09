@@ -12,12 +12,12 @@ import streamlit as st
 # DESIGN.md §3 컬러 토큰 — CSS 변수로 단일 정의
 _CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&display=swap');
 
 :root{
   --bg-base:#0B0E14; --bg-surface:#141A24; --bg-elevated:#1A2230;
-  --hairline:#222C3A; --strong:#2E3A4D;
+  --hairline:#222C3A; --strong:#2E3A4D; --hairline-2:#2C3848; --bone:#9FB6CC;
   --text:#E6EAF2; --muted:#8A93A6; --faint:#586073;
   --enc:#F4A340; --enc-glow:rgba(244,163,64,.16);
   --scr:#34D1C4; --scr-glow:rgba(52,209,196,.16);
@@ -122,6 +122,18 @@ html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
 .ff-checks .num{flex:none;width:18px;height:18px;border-radius:5px;background:var(--bg-elevated);border:1px solid var(--strong);display:grid;place-items:center;font-family:'Geist Mono';font-size:11px;color:var(--scr);margin-top:1px}
 .ff-checks .rat{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .ff-recall{font-family:'Geist Mono';font-size:11px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 30%,transparent);border-radius:7px;padding:8px 10px;margin-bottom:12px}
+/* ---- mediator receipt (A — glass-box Phoenix MCP introspection) ---- */
+.ff-receipt{font-family:'Geist Mono';font-size:11px;color:var(--scr);background:var(--scr-glow);border:1px solid color-mix(in srgb,var(--scr) 30%,transparent);border-radius:8px;padding:10px 12px;margin-bottom:12px;line-height:1.5}
+.ff-receipt .rh{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:6px}
+.ff-receipt .rt{font-weight:500;letter-spacing:.03em;color:var(--scr)}
+.ff-receipt .rs{color:var(--faint);font-size:10px}
+.ff-receipt .rq{color:var(--muted);margin-bottom:5px}
+.ff-receipt .rq b{color:var(--text);font-weight:500}
+.ff-receipt .rlist{display:flex;flex-direction:column;gap:3px}
+.ff-receipt .ritem{color:var(--muted)}
+.ff-receipt .ritem .rd{color:var(--scr);margin-right:8px}
+.ff-receipt .rcold{color:var(--faint)}
+.ff-receipt .rtrace{margin-top:7px;color:var(--faint);font-size:10px}
 .ff-disc{font-size:10.5px;color:var(--faint);line-height:1.45;border-top:1px solid var(--hairline);padding-top:10px}
 
 /* ---- trace strip ---- */
@@ -145,12 +157,114 @@ html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
 .ff-driftbar .fill{position:absolute;top:0;bottom:0;left:0;border-radius:999px}
 .ff-driftbar .val{width:42px;text-align:right;font-family:'Geist Mono';font-size:11px;color:var(--muted)}
 
+/* ---- calibration headline (B — self-improvement, measured) ---- */
+.ff-cal-head{border:1px solid var(--hairline);border-radius:12px;background:var(--bg-elevated);padding:14px 18px;margin-bottom:12px}
+.ff-cal-head .lbl{font-family:'Geist Mono';font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.ff-cal-head .row{display:flex;align-items:baseline;gap:12px;margin-top:7px}
+.ff-cal-head .was{font-family:'Geist Mono';font-size:17px;color:var(--faint);text-decoration:line-through;text-decoration-color:var(--strong)}
+.ff-cal-head .arr{color:var(--muted)}
+.ff-cal-head .now{font-family:'Cabinet Grotesk';font-weight:800;font-size:30px;line-height:1;background:linear-gradient(90deg,var(--enc),var(--scr));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ff-cal-head .lift{font-family:'Geist Mono';font-size:12px;color:var(--good);background:var(--good-glow);border:1px solid color-mix(in srgb,var(--good) 35%,transparent);border-radius:6px;padding:3px 8px}
+.ff-cal-head .src{display:inline-block;margin-top:9px;font-family:'Geist Mono';font-size:10.5px;color:var(--scr);text-decoration:none}
+.ff-cal-head .src:hover{text-decoration:underline}
+
 /* ---- Streamlit widgets ---- */
 .stButton>button{font-family:'Geist';font-weight:500;border-radius:8px;border:1px solid var(--strong);background:var(--bg-surface);color:var(--text);transition:.15s}
 .stButton>button:hover{border-color:var(--text);color:var(--text)}
 div[data-testid="stFileUploader"]{background:var(--bg-surface);border:1px dashed var(--strong);border-radius:12px;padding:6px}
 .stSelectbox label,.stTextArea label,.stTextInput label{font-family:'Geist Mono';font-size:11px!important;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)!important}
 .stProgress > div > div > div{background:linear-gradient(90deg,var(--enc),var(--scr))}
+
+/* ============================================================= */
+/* 랜딩 히어로 — DESIGN.md "Diagnostic Freeze-Frame" / FormForge Hero v2 이식 */
+/*   ffh- 프리픽스(Streamlit·기존 ff- 클래스와 충돌 방지). 색은 위 토큰 재사용. */
+/* ============================================================= */
+
+/* 페이지 뒤 진단 그리드 배경 (랜딩에서만 1회 주입) */
+.ffh-field{position:fixed;inset:0;pointer-events:none;z-index:0}
+.ffh-field::before{content:"";position:absolute;inset:0;
+  background-image:linear-gradient(to right,rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.02) 1px,transparent 1px);
+  background-size:48px 48px;
+  -webkit-mask-image:radial-gradient(ellipse 95% 85% at 72% 42%,#000 35%,transparent 88%);
+  mask-image:radial-gradient(ellipse 95% 85% at 72% 42%,#000 35%,transparent 88%)}
+.ffh-field::after{content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 55% at 82% 30%,rgba(52,209,196,.06),transparent 60%),radial-gradient(ellipse 55% 50% at 14% 88%,rgba(244,163,64,.05),transparent 60%)}
+
+/* topbar (brand + nav + ENGINE LIVE) */
+.ffh-topbar{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--hairline);padding-bottom:15px;margin-bottom:2px}
+.ffh-brand{display:flex;align-items:center;gap:12px}
+.ffh-mark{width:24px;height:24px;border:1.5px solid var(--text);position:relative;display:grid;place-items:center}
+.ffh-mark::before{content:"";position:absolute;inset:6px;border:1.5px solid var(--text)}
+.ffh-mark::after{content:"";position:absolute;width:6px;height:6px;background:linear-gradient(135deg,var(--enc),var(--scr))}
+.ffh-name{font-family:'Cabinet Grotesk';font-weight:800;font-size:17px;letter-spacing:.07em;color:var(--text)}
+.ffh-nav{display:flex;align-items:center;gap:26px;font-family:'Geist Mono';font-size:11.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.ffh-nav a{color:inherit;text-decoration:none;transition:color .18s}
+.ffh-nav a:hover{color:var(--text)}
+.ffh-pill{display:inline-flex;align-items:center;gap:8px;color:var(--scr);border:1px solid var(--hairline-2);padding:5px 10px}
+.ffh-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--scr);animation:ffhpulse 2.4s infinite}
+@keyframes ffhpulse{0%{box-shadow:0 0 0 0 rgba(52,209,196,.5)}70%{box-shadow:0 0 0 6px rgba(52,209,196,0)}100%{box-shadow:0 0 0 0 rgba(52,209,196,0)}}
+@media (prefers-reduced-motion:reduce){.ffh-pill .dot{animation:none}}
+
+/* left column : lede */
+.ffh-kicker{display:inline-flex;align-items:center;gap:13px;font-family:'Geist Mono';font-size:11px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:8px 0 20px}
+.ffh-kicker .bar{width:30px;height:1px;background:var(--hairline-2)}
+.ffh-kicker b{color:var(--scr);font-weight:500}
+.ffh-h1{font-family:'Cabinet Grotesk';font-weight:800;font-size:clamp(38px,4.2vw,64px);line-height:1.0;letter-spacing:-.022em;margin-bottom:22px;color:var(--text)}
+.ffh-h1 .period{display:inline-block;width:.34em;height:.34em;vertical-align:baseline;margin-left:.05em;background:linear-gradient(135deg,var(--enc) 0%,var(--scr) 100%)}
+.ffh-body{font-size:15.5px;line-height:1.58;color:var(--muted);max-width:460px;margin-bottom:6px}
+.ffh-body strong{color:var(--text);font-weight:500}
+.ffh-stats{display:flex;align-items:stretch;border-top:1px solid var(--hairline);padding-top:16px;margin-top:18px;font-family:'Geist Mono'}
+.ffh-stat{padding-right:24px;margin-right:24px;border-right:1px solid var(--hairline)}
+.ffh-stat:last-child{border-right:none;margin-right:0;padding-right:0}
+.ffh-stat .num{font-size:21px;font-weight:500;letter-spacing:.01em;color:var(--text);font-variant-numeric:tabular-nums}
+.ffh-stat .num span{font-size:13px;color:var(--muted)}
+.ffh-stat .lab{font-size:10px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase;margin-top:5px}
+
+/* right column : capture showcase */
+.ffh-capture{position:relative;margin-top:6px}
+.ffh-frame{position:relative;background:var(--bg-surface);border:1px solid var(--hairline-2);aspect-ratio:4/4;overflow:hidden;box-shadow:0 40px 110px -45px rgba(0,0,0,.85),inset 0 0 140px rgba(0,0,0,.55)}
+.ffh-frame video,.ffh-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 38%}
+/* 우리 진단 프리즈프레임/스켈레톤 영상은 색(녹 depth·적 flag·스켈레톤)이 의미 — 흑백처리 금지, 대비만. */
+.ffh-frame video,.ffh-frame img{filter:contrast(1.05) saturate(1.06) brightness(.96)}
+.ffh-scanlines{position:absolute;inset:0;pointer-events:none;z-index:2;background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0px,rgba(0,0,0,0) 2px,rgba(0,0,0,.22) 3px,rgba(0,0,0,.22) 4px);mix-blend-mode:multiply;opacity:.38}
+.ffh-tint{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(180deg,rgba(11,14,20,.38) 0%,rgba(11,14,20,.04) 40%,rgba(11,14,20,.6) 100%)}
+.ffh-overlay{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+.ffh-ticks{position:absolute;inset:14px;pointer-events:none;z-index:4}
+.ffh-ticks span{position:absolute;width:15px;height:15px}
+.ffh-ticks .tl{top:0;left:0;border-top:1px solid var(--scr);border-left:1px solid var(--scr)}
+.ffh-ticks .tr{top:0;right:0;border-top:1px solid var(--hairline-2);border-right:1px solid var(--hairline-2)}
+.ffh-ticks .bl{bottom:0;left:0;border-bottom:1px solid var(--hairline-2);border-left:1px solid var(--hairline-2)}
+.ffh-ticks .br{bottom:0;right:0;border-bottom:1px solid var(--hairline-2);border-right:1px solid var(--hairline-2)}
+.ffh-scan{position:absolute;left:0;right:0;height:1.5px;z-index:4;background:linear-gradient(90deg,transparent,rgba(52,209,196,.45),transparent);top:0;pointer-events:none;mix-blend-mode:screen;animation:ffhscan 6s cubic-bezier(.6,0,.4,1) infinite}
+@keyframes ffhscan{0%{top:6%;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:94%;opacity:0}}
+@media (prefers-reduced-motion:reduce){.ffh-scan{display:none}}
+.ffh-capmeta{position:absolute;top:18px;left:20px;z-index:5;font-family:'Geist Mono';font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.ffh-capmeta .rec{color:var(--risk)}
+.ffh-capmeta .pass{color:var(--good)}
+.ffh-knee{position:absolute;z-index:6;left:58%;top:60%;display:flex;align-items:center;gap:8px;font-family:'Geist Mono';font-size:10.5px;letter-spacing:.08em;color:var(--risk);text-transform:uppercase;white-space:nowrap}
+.ffh-knee::before{content:"";width:26px;height:1px;background:var(--risk);flex-shrink:0;box-shadow:0 0 6px rgba(255,92,92,.6)}
+.ffh-coach{position:absolute;z-index:7;width:236px;background:rgba(20,26,36,.92);backdrop-filter:blur(9px);border:1px solid var(--hairline-2);padding:13px 14px}
+.ffh-coach.enc{left:6px;top:34px;border-left:2px solid var(--enc)}
+.ffh-coach.scr{right:6px;bottom:70px;border-left:2px solid var(--scr)}
+.ffh-coach .top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+.ffh-coach .av{width:32px;height:32px;flex-shrink:0;display:grid;place-items:center;font-family:'Cabinet Grotesk';font-weight:800;font-size:15px}
+.ffh-coach.enc .av{color:var(--enc);border:1px solid rgba(244,163,64,.45);background:radial-gradient(circle at 50% 30%,rgba(244,163,64,.16),transparent 70%)}
+.ffh-coach.scr .av{color:var(--scr);border:1px solid rgba(52,209,196,.45);background:radial-gradient(circle at 50% 30%,rgba(52,209,196,.16),transparent 70%)}
+.ffh-coach .nm{font-family:'Cabinet Grotesk';font-weight:700;font-size:14px;color:var(--text)}
+.ffh-coach .role{font-family:'Geist Mono';font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:3px}
+.ffh-coach .line{font-size:12px;line-height:1.5;color:var(--muted)}
+.ffh-coach .line em{font-style:normal;font-weight:500}
+.ffh-coach.enc .line em{color:var(--enc)}
+.ffh-coach.scr .line em{color:var(--scr)}
+.ffh-coach .chip{margin-top:10px;display:inline-flex;align-items:center;gap:7px;font-family:'Geist Mono';font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border:1px solid var(--hairline-2)}
+.ffh-coach.enc .chip{color:var(--enc);border-color:rgba(244,163,64,.35)}
+.ffh-coach.scr .chip{color:var(--scr);border-color:rgba(52,209,196,.35)}
+.ffh-coach .chip .d{width:5px;height:5px;border-radius:50%}
+.ffh-coach.enc .chip .d{background:var(--enc)}
+.ffh-coach.scr .chip .d{background:var(--scr)}
+.ffh-filmstrip{margin-top:14px;border-top:1px solid var(--hairline);padding-top:12px;font-family:'Geist Mono';font-size:10.5px;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;display:flex;flex-wrap:wrap;gap:6px}
+.ffh-filmstrip b{color:var(--muted);font-weight:400}
+@media (max-width:1100px){.ffh-coach{width:200px}}
 </style>
 """
 
