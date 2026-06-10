@@ -245,12 +245,20 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
             angle = st.session_state.get("demo_angle", "front")
             video_url = _demo_skeleton_uri(angle) or _demo_video_uri()
             autoplay = True
-        else:
-            # 라이브 = pose_extractor 가 만든 스켈레톤 영상(skeleton_video_url) 우선, 없으면 원본 영상.
+        elif status in DONE:
+            # 라이브 완료 = pose_extractor 가 만든 스켈레톤 영상(skeleton_video_url) 우선, 없으면 원본 영상.
             skeleton = (debate.get("pose_data") or {}).get("skeleton_video_url")
             video_url = skeleton or _signed_video(debate)
             autoplay = bool(skeleton)  # 스켈레톤이면 autoplay loop, 원본 영상이면 controls
-        st.markdown(dv.viewer_html(debate.get("pose_data"), video_url, autoplay=autoplay), unsafe_allow_html=True)
+        else:
+            # 라이브 분석 진행 중: 영상을 띄우지 않는다. 1초 폴링 rerun 마다 _signed_video 가
+            # 새 signed URL 을 발급해 <video src> 가 매초 바뀌면 영상이 매초 0:00 으로 재다운로드되며
+            # 깜빡이기 때문(우측 토론 피드/하단 trace 가 진행을 보여줌). viewer 는 "Analyzing…" placeholder.
+            video_url = None
+            autoplay = False
+        # 분석 중(라이브, not DONE)엔 pose_data 도 넘기지 않아 keyframe 깜빡임까지 차단.
+        pose_for_viewer = debate.get("pose_data") if (demo or status in DONE) else None
+        st.markdown(dv.viewer_html(pose_for_viewer, video_url, autoplay=autoplay), unsafe_allow_html=True)
         st.markdown(dv.readout_html(debate.get("pose_data")), unsafe_allow_html=True)
     with right:
         st.markdown(dv.debate_feed(debate, stagger=demo), unsafe_allow_html=True)
