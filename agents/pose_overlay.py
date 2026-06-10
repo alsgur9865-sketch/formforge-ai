@@ -116,6 +116,7 @@ def render_keyframe_overlay(
     crop_pad: float | None = 0.12,
     max_long_side: int = 1080,
     jpeg_quality: int = 90,
+    bg: str = "frame",  # "frame"=실제 프레임 위 | "black"=검정 배경(스켈레톤만)
 ) -> bytes:
     """rep-바닥 프레임(BGR np) + 정규화 33좌표 → 오버레이 JPEG bytes.
 
@@ -149,6 +150,9 @@ def render_keyframe_overlay(
         base = base.resize((round(base.width * rs), round(base.height * rs)), Image.LANCZOS)
 
     w, h = base.size
+    # bg="black": 실제 프레임 대신 검정 배경(스켈레톤만). 좌표·크기는 프레임 기준 그대로 유지.
+    if bg == "black":
+        base = Image.new("RGBA", (w, h), (8, 11, 17, 255))
     scale = h / 900.0  # 렌더 요소 크기 기준(세로 900px 기준)
 
     def px(idx: int) -> tuple[float, float] | None:
@@ -268,9 +272,11 @@ _SHO_L, _SHO_R = 11, 12
 
 
 def _angle_label(img: np.ndarray, anchor: tuple[int, int], text: str, scale: float,
-                 color: tuple[int, int, int] = _BGR_CORE) -> None:
+                 color: tuple[int, int, int] = _BGR_CORE,
+                 placed: list[tuple[int, int, int, int]] | None = None) -> None:
     """관절 옆 각도 텍스트 — 다크 아웃라인 + 컬러로 영상 위 가독성(cv2, 프레임당 경량).
-    cv2 Hershey 폰트는 '°'(U+00B0)를 못 그리므로(→'?'), 끝의 °는 떼어 작은 원으로 직접 그린다."""
+    cv2 Hershey 폰트는 '°'(U+00B0)를 못 그리므로(→'?'), 끝의 °는 떼어 작은 원으로 직접 그린다.
+    placed: 이미 그려진 라벨 bbox 목록 — 겹치면 세로로 밀어 분리(측면 무릎·엉덩이 라벨 충돌 회피)."""
     deg = text.endswith("°")
     base = text[:-1] if deg else text
     fs = max(0.42, 0.6 * scale)
@@ -285,6 +291,16 @@ def _angle_label(img: np.ndarray, anchor: tuple[int, int], text: str, scale: flo
     ty = ay + tht // 2
     tx = max(2, min(tx, img.shape[1] - total_w - 2))
     ty = max(tht + 2, min(ty, img.shape[0] - 2))
+    # 겹침 회피: 이미 그려진 라벨과 충돌하면 ty 를 아래로 밀어 분리(가독성 — DEILEAN 깨짐 방지).
+    if placed is not None:
+        pad = max(2, int(round(3 * scale)))
+        step = tht + 2 * pad
+        for _ in range(6):
+            box = (tx - pad, ty - tht - pad, tx + total_w + pad, ty + pad)
+            if not any(box[0] < q[2] and q[0] < box[2] and box[1] < q[3] and q[1] < box[3] for q in placed):
+                break
+            ty = min(ty + step, img.shape[0] - 2)
+        placed.append((tx - pad, ty - tht - pad, tx + total_w + pad, ty + pad))
     cv2.putText(img, base, (tx, ty), cv2.FONT_HERSHEY_DUPLEX, fs, (8, 11, 17), th + 3, cv2.LINE_AA)
     cv2.putText(img, base, (tx, ty), cv2.FONT_HERSHEY_DUPLEX, fs, color, th, cv2.LINE_AA)
     if deg:
@@ -305,6 +321,7 @@ def _draw_frame_angles(img: np.ndarray, pts: dict[int, tuple[int, int]],
         x, y, v = lm[i]
         return np.array([x, y], dtype=np.float64), v
 
+    placed: list[tuple[int, int, int, int]] = []  # 그려진 라벨 bbox(겹침 회피 누적)
     kl, kr = vec(_KNEE_L), vec(_KNEE_R)
     if kl is None and kr is None:
         return
@@ -313,7 +330,7 @@ def _draw_frame_angles(img: np.ndarray, pts: dict[int, tuple[int, int]],
     hp, kn, an = vec(hip_i), vec(knee_i), vec(ank_i)
     if hp and kn and an and kn[1] >= _MIN_VIS and knee_i in pts:
         depth = _calc_angle(hp[0], kn[0], an[0])
-        _angle_label(img, pts[knee_i], f"DEPTH {depth:.0f}°", scale)
+        _angle_label(img, pts[knee_i], f"DEPTH {depth:.0f}°", scale, placed=placed)
 
     # LEAN = 척추(어깨중점→엉덩이중점) vs 수직. 분석 _back_angle_vs_vertical 과 동일 식(수치 일치).
     sl, sr, hl, hr = vec(_SHO_L), vec(_SHO_R), vec(_HIP_L), vec(_HIP_R)
@@ -324,7 +341,7 @@ def _draw_frame_angles(img: np.ndarray, pts: dict[int, tuple[int, int]],
         lean = float(np.degrees(np.arccos(cos)))
         hx = (pts[_HIP_L][0] + pts[_HIP_R][0]) // 2
         hy = (pts[_HIP_L][1] + pts[_HIP_R][1]) // 2
-        _angle_label(img, (hx, hy), f"LEAN {lean:.0f}°", scale)
+        _angle_label(img, (hx, hy), f"LEAN {lean:.0f}°", scale, placed=placed)
 
 
 def render_skeleton_video(
@@ -335,6 +352,7 @@ def render_skeleton_video(
     out_fps: float = 30.0,
     max_long_side: int = 720,
     crop_pad: float = 0.08,
+    bg: str = "frame",  # "frame"=원본 영상 위 | "black"=검정 배경(스켈레톤만)
 ) -> bytes:
     """원본 영상 + 프레임별 33좌표 → 스켈레톤이 몸을 따라 움직이는 H.264 mp4 bytes.
 
@@ -396,8 +414,11 @@ def render_skeleton_video(
                 break
             lm = lm_by_idx.get(idx)
             if lm is not None:
-                crop = frame[y0:y1, x0:x1]
-                crop = cv2.resize(crop, (ow, oh), interpolation=cv2.INTER_AREA)
+                if bg == "black":
+                    crop = np.full((oh, ow, 3), (17, 11, 8), dtype=np.uint8)  # 검정 배경 BGR #080B11
+                else:
+                    crop = frame[y0:y1, x0:x1]
+                    crop = cv2.resize(crop, (ow, oh), interpolation=cv2.INTER_AREA)
                 pts = transform(lm)
                 _draw_skeleton_frame(crop, pts, flagged, scale)
                 _draw_frame_angles(crop, pts, lm, scale)  # 프레임별 실측 DEPTH 각도 baked

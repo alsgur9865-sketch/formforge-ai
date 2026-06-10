@@ -41,7 +41,7 @@ def main() -> int:
     print(f"  프레임 {len(res.frame_landmarks)}개 좌표 · rep {res.rep_count}", file=sys.stderr)
 
     print("스켈레톤 영상 렌더 중 (ffmpeg libx264) …", file=sys.stderr)
-    mp4 = render_skeleton_video(str(src), res.frame_landmarks, flagged_indices=[])
+    mp4 = render_skeleton_video(str(src), res.frame_landmarks, flagged_indices=[], bg="black")
     out.write_bytes(mp4)
     print(f"✅ 생성: {out} ({len(mp4) / 1024:.0f} KB)", file=sys.stderr)
     return 0
