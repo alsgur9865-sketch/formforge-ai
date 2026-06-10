@@ -4,7 +4,7 @@
 
 Built with **Google Cloud Agent Builder** (via [Google ADK](https://google.github.io/adk-docs/) + Cloud Run), powered by **Gemini** (2.5 Pro / 2.5 Flash / 3.5 Flash), integrating the **Arize Phoenix MCP** partner server.
 
-- 🎥 **Demo Video**: _coming soon_
+- 🎥 **Demo Video**: https://www.youtube.com/watch?v=qO3w-3PMY-A
 - 🌐 **Live URL**: https://formforge-app-988838927510.us-central1.run.app
 - 🏆 **Hackathon**: [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com) — **Arize Track**
 
