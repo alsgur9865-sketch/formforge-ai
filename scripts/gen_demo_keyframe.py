@@ -83,7 +83,6 @@ def main() -> int:
         frame, hero.bottom_landmarks, flagged, labels,
         exercise="squat",
         timecode=f"REP {hero.rep_number} · {hero.bottom_timestamp_sec:.1f}S",
-        bg="black",  # 데모 히어로: 검정 배경 + 스켈레톤만(실제 영상 프레임 비노출)
     )
     out.write_bytes(jpg)
     print(f"✅ {out}  ({len(jpg) // 1024} KB · depth={hero.depth_degrees}° · "

@@ -128,15 +128,10 @@ def screen_upload() -> None:
         demo = st.button("Watch a teardown (sample · no cloud)")
         st.markdown(hero.hero_stats_html(), unsafe_allow_html=True)
     with right:
-        # 우측 영웅 = 우리 진짜 진단 프리즈프레임(스켈레톤·실측각도 baked) 우선.
-        # 없으면 움직이는 스켈레톤 영상, 둘 다 없으면 SVG 일러스트로 graceful fallback.
-        st.markdown(
-            hero.hero_capture_html(
-                image_url=_demo_keyframe_uri(),
-                video_url=_demo_skeleton_uri() or _demo_video_uri(),
-            ),
-            unsafe_allow_html=True,
-        )
+        # 우측 영웅 = DESIGN.md Hero v2 SVG 진단 일러스트(임상 톤, hero._SVG_SKELETON).
+        # 메인 랜딩은 깔끔한 도식만 — 실제 영상 프레임/스켈레톤 자산은 비노출(분석 결과는
+        # 토론 화면에서). image_url/video_url 미전달 → hero_capture_html 의 SVG fallback.
+        st.markdown(hero.hero_capture_html(), unsafe_allow_html=True)
 
     if demo:
         st.session_state["demo"] = True

@@ -116,7 +116,6 @@ def render_keyframe_overlay(
     crop_pad: float | None = 0.12,
     max_long_side: int = 1080,
     jpeg_quality: int = 90,
-    bg: str = "frame",  # "frame"=실제 프레임 위 | "black"=검정 배경(스켈레톤만)
 ) -> bytes:
     """rep-바닥 프레임(BGR np) + 정규화 33좌표 → 오버레이 JPEG bytes.
 
@@ -150,9 +149,6 @@ def render_keyframe_overlay(
         base = base.resize((round(base.width * rs), round(base.height * rs)), Image.LANCZOS)
 
     w, h = base.size
-    # bg="black": 실제 프레임 대신 검정 배경(스켈레톤만). 좌표·크기는 프레임 기준 그대로 유지.
-    if bg == "black":
-        base = Image.new("RGBA", (w, h), (8, 11, 17, 255))
     scale = h / 900.0  # 렌더 요소 크기 기준(세로 900px 기준)
 
     def px(idx: int) -> tuple[float, float] | None:
@@ -352,7 +348,6 @@ def render_skeleton_video(
     out_fps: float = 30.0,
     max_long_side: int = 720,
     crop_pad: float = 0.08,
-    bg: str = "frame",  # "frame"=원본 영상 위 | "black"=검정 배경(스켈레톤만)
 ) -> bytes:
     """원본 영상 + 프레임별 33좌표 → 스켈레톤이 몸을 따라 움직이는 H.264 mp4 bytes.
 
@@ -414,11 +409,8 @@ def render_skeleton_video(
                 break
             lm = lm_by_idx.get(idx)
             if lm is not None:
-                if bg == "black":
-                    crop = np.full((oh, ow, 3), (17, 11, 8), dtype=np.uint8)  # 검정 배경 BGR #080B11
-                else:
-                    crop = frame[y0:y1, x0:x1]
-                    crop = cv2.resize(crop, (ow, oh), interpolation=cv2.INTER_AREA)
+                crop = frame[y0:y1, x0:x1]
+                crop = cv2.resize(crop, (ow, oh), interpolation=cv2.INTER_AREA)
                 pts = transform(lm)
                 _draw_skeleton_frame(crop, pts, flagged, scale)
                 _draw_frame_angles(crop, pts, lm, scale)  # 프레임별 실측 DEPTH 각도 baked
