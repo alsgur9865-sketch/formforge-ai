@@ -45,6 +45,9 @@ COPY tests/sample_pose_data.json ./tests/sample_pose_data.json
 #    이걸 안 COPY 하면: 데모 히어로가 빈 placeholder(영상도 .dockerignore 제외) + 라이브 라벨이 PIL 기본 비트맵폰트로 폴백.
 COPY data/demo_keyframe.jpg ./data/demo_keyframe.jpg
 COPY data/demo_skeleton.mp4 ./data/demo_skeleton.mp4
+# 측면(카메라앵글 인지) 데모 자산 — Front↔Side 토글 시 측면 프리즈프레임/스켈레톤(세션24).
+COPY data/demo_keyframe_side.jpg ./data/demo_keyframe_side.jpg
+COPY data/demo_skeleton_side.mp4 ./data/demo_skeleton_side.mp4
 COPY data/fonts/ ./data/fonts/
 
 # 5) MediaPipe Pose 모델 (.gitignore — 빌드 시 다운로드). PoseExtractor Stage1 이 사용.
