@@ -30,6 +30,7 @@ from ui.theme import apply_theme, page_config  # noqa: E402
 from ui.components import debate_view as dv  # noqa: E402
 from ui.components import trace_view as tv  # noqa: E402
 from ui.components import feedback_form as fb  # noqa: E402
+from ui.components import hero as hero  # noqa: E402
 
 EXERCISES = ["squat", "deadlift", "pushup"]
 DONE = ("feedback_pending", "done")
@@ -104,31 +105,33 @@ def _persona_state(user_id: str) -> dict | None:
 
 # ----------------------------------------------------------------- header
 def _header() -> None:
-    st.markdown(
-        '<div class="ff-brand"><div class="glyph">F</div>'
-        '<div class="wm">FormForge <span>AI</span></div></div>',
-        unsafe_allow_html=True,
-    )
+    # DESIGN.md / Hero v2 topbar (brand + nav + ENGINE LIVE). 두 화면 공통.
+    st.markdown(hero.topbar_html(), unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------- screen: upload
 def screen_upload() -> None:
+    # 진단 그리드 배경(랜딩 전용) → topbar → 2단 히어로.
+    st.markdown(hero.field_html(), unsafe_allow_html=True)
     _header()
-    st.markdown(
-        '<div class="ff-h1">The argument happens<br>on your body<span class="g">.</span></div>'
-        '<div class="ff-lede">Upload a workout clip and two AI coaches debate your form in real time — '
-        'then a Head Coach settles it into a single verdict.</div>',
-        unsafe_allow_html=True,
-    )
     st.write("")
-    col, side = st.columns([1.4, 1])
-    with col:
+
+    # 좌: lede + 실제 업로드 위젯 + stats / 우: 캡처 쇼케이스(실제 스켈레톤 영상).
+    left, right = st.columns([0.86, 1.14], gap="large")
+    with left:
+        st.markdown(hero.hero_intro_html(), unsafe_allow_html=True)
         file = st.file_uploader("Workout video", type=["mp4", "mov", "avi", "mkv", "webm"])
         exercise = st.selectbox("Exercise", EXERCISES, format_func=str.title)
         injuries = st.text_input("Injury history (optional)", placeholder="e.g. left knee pain last year")
         experience = st.selectbox("Experience level", ["beginner", "intermediate", "advanced"], index=1)
-        start = st.button("⚡ Start analysis — summon both coaches", type="primary", disabled=file is None)
-        demo = st.button("Preview with sample data (no cloud needed)")
+        start = st.button("⚡ Run a diagnostic — summon both coaches", type="primary", disabled=file is None)
+        demo = st.button("Watch a teardown (sample · no cloud)")
+        st.markdown(hero.hero_stats_html(), unsafe_allow_html=True)
+    with right:
+        # 우측 영웅 = DESIGN.md Hero v2 SVG 진단 일러스트(임상 톤, hero._SVG_SKELETON).
+        # 메인 랜딩은 깔끔한 도식만 — 실제 영상 프레임/스켈레톤 자산은 비노출(분석 결과는
+        # 토론 화면에서). image_url/video_url 미전달 → hero_capture_html 의 SVG fallback.
+        st.markdown(hero.hero_capture_html(), unsafe_allow_html=True)
 
     if demo:
         st.session_state["demo"] = True
@@ -183,20 +186,24 @@ def _demo_video_uri() -> str | None:
 
 
 @st.cache_data(show_spinner=False)
-def _demo_skeleton_uri() -> str | None:
-    """데모 영웅용: 미리 구운 스켈레톤 오버레이 영상(§8, 움직이는) data URI. scripts/gen_demo_skeleton.py 산출."""
+def _demo_skeleton_uri(angle: str = "front") -> str | None:
+    """데모 영웅용: 미리 구운 스켈레톤 오버레이 영상(§8, 움직이는) data URI. scripts/gen_demo_skeleton.py 산출.
+
+    angle="side" 면 측면 자산(demo_skeleton_side.mp4 — 카메라앵글 인지 데모)."""
     import base64
-    p = Path(__file__).resolve().parent.parent / "data" / "demo_skeleton.mp4"
+    name = "demo_skeleton_side.mp4" if angle == "side" else "demo_skeleton.mp4"
+    p = Path(__file__).resolve().parent.parent / "data" / name
     if not p.exists():
         return None
     return "data:video/mp4;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
 
 
 @st.cache_data(show_spinner=False)
-def _demo_keyframe_uri() -> str | None:
+def _demo_keyframe_uri(angle: str = "front") -> str | None:
     """데모 영웅용 정지 프리즈프레임 data URI (스켈레톤 영상 도입 후 fallback 후보로 보존)."""
     import base64
-    p = Path(__file__).resolve().parent.parent / "data" / "demo_keyframe.jpg"
+    name = "demo_keyframe_side.jpg" if angle == "side" else "demo_keyframe.jpg"
+    p = Path(__file__).resolve().parent.parent / "data" / name
     if not p.exists():
         return None
     return "data:image/jpeg;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
@@ -205,6 +212,17 @@ def _demo_keyframe_uri() -> str | None:
 def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     _header()
     status = debate.get("status", "pending")
+
+    # 데모 전용: Front ↔ Side 카메라앵글 토글. 같은 시스템이 각도에 따라 다른 정직한 판독을
+    # 내는 걸 즉석 대조(정면=무릎 valgus / 측면=등 말림·무릎 not_visible). key="demo_angle"
+    # 가 session_state 를 직접 갱신 → 다음 rerun 의 main() 이 새 angle 로 snapshot 재빌드.
+    if demo:
+        st.radio(
+            "Camera angle", ["front", "side"],
+            format_func=lambda a: "Front view" if a == "front" else "Side view",
+            horizontal=True, key="demo_angle",
+            help="Same coaches, same engine — watch how the read changes with the camera angle. Each view sees what the other can't.",
+        )
 
     # subprocess 가 비동기로 도는 동안 1초 폴링으로 진행(pose→토론→판결)을 따라간다.
     # 완료(DONE)·에러일 땐 폴링 중단. (status='error' = subprocess 가 실패를 Firestore 에 기록.)
@@ -223,8 +241,9 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     with left:
         # 데모: 키프레임(프리즈프레임)이 있으면 영상 인코딩 생략(viewer_html이 img 우선).
         if demo:
-            # 데모 영웅 = 미리 구운 스켈레톤 영상(움직이는 오버레이). 없으면 원본 영상 fallback.
-            video_url = _demo_skeleton_uri() or _demo_video_uri()
+            # 데모 영웅 = 미리 구운 스켈레톤 영상(움직이는 오버레이, 앵글별). 없으면 원본 영상 fallback.
+            angle = st.session_state.get("demo_angle", "front")
+            video_url = _demo_skeleton_uri(angle) or _demo_video_uri()
             autoplay = True
         else:
             # 라이브 = pose_extractor 가 만든 스켈레톤 영상(skeleton_video_url) 우선, 없으면 원본 영상.
@@ -237,7 +256,14 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
         st.markdown(dv.debate_feed(debate, stagger=demo), unsafe_allow_html=True)
 
     if debate.get("consensus"):
-        st.markdown(dv.verdict_html(debate.get("consensus")), unsafe_allow_html=True)
+        st.markdown(
+            dv.verdict_html(
+                debate.get("consensus"),
+                mcp_tool_calls=debate.get("mcp_tool_calls"),
+                trace_ids=debate.get("trace_ids"),
+            ),
+            unsafe_allow_html=True,
+        )
 
     st.markdown(
         tv.trace_strip(
@@ -251,6 +277,8 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     # 피드백 (P3) — 토론 완료 시
     if status in DONE or demo:
         st.write("")
+        # B: 검증된 자기개선 수치(+28%) 헤드라인 — 피드백 전/후 항상 노출(Arize thesis 증거).
+        st.markdown(fb.calibration_headline_html(), unsafe_allow_html=True)
         if st.session_state.get("fb_done"):
             st.success("Feedback applied — both coaches evolved a step toward you.")
             ps = fb.persona_drift_html(st.session_state.get("persona_after"))
@@ -263,7 +291,7 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
 
     st.write("")
     if st.button("↺ Start over"):
-        for k in ("debate_id", "demo", "fb_done", "persona_after"):
+        for k in ("debate_id", "demo", "demo_angle", "_demo_angle_prev", "fb_done", "persona_after"):
             st.session_state.pop(k, None)
         st.rerun()
 
@@ -295,10 +323,19 @@ def main() -> None:
     apply_theme()
     st.session_state.setdefault("user_id", "guest-" + uuid.uuid4().hex[:8])
 
-    # 데모 모드: 샘플 스냅샷 렌더 (클라우드 불필요)
-    if st.session_state.get("demo") or st.query_params.get("demo") == "1":
+    # 데모 모드: 샘플 스냅샷 렌더 (클라우드 불필요). ?demo=1|front|side 또는 'Watch a teardown' 버튼.
+    if st.session_state.get("demo") or st.query_params.get("demo") in ("1", "front", "side"):
+        # 초기 앵글: ?demo=side 면 측면, 아니면 정면. setdefault → 토글(key="demo_angle")과 충돌 없음.
+        st.session_state.setdefault(
+            "demo_angle", "side" if st.query_params.get("demo") == "side" else "front")
+        angle = st.session_state["demo_angle"]
+        # 앵글 전환 시 피드백 상태 리셋(앵글별 폼 신선하게).
+        if st.session_state.get("_demo_angle_prev") != angle:
+            st.session_state["_demo_angle_prev"] = angle
+            for k in ("fb_done", "persona_after"):
+                st.session_state.pop(k, None)
         from ui.sample_data import sample_debate
-        screen_debate(sample_debate(), demo=True)
+        screen_debate(sample_debate(angle), demo=True)
         return
 
     debate_id = st.session_state.get("debate_id")

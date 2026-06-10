@@ -477,6 +477,7 @@ async def run_full_session(
                 debate_id=debate_id,
                 consensus=mediator_out.as_dict(),
                 trace_ids=trace_ids,
+                mcp_tool_calls=tool_calls,  # A: 영수증에 '어떤 MCP 툴을 불렀나' 표시 (Firestore 저장)
             )
         except Exception as e:  # noqa: BLE001
             print(

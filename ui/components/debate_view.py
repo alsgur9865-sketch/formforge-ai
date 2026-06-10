@@ -251,8 +251,56 @@ def debate_feed(debate: dict[str, Any], stagger: bool = False) -> str:
 """
 
 
+# ---------------------------------------------------------------- mediator receipt (A: glass-box introspection)
+def _receipt_html(refs: list[dict[str, Any]],
+                  mcp_tool_calls: list[str] | None,
+                  trace_ids: dict[str, Any] | None) -> str:
+    """Mediator 가 Phoenix MCP 로 자기 과거 trace 를 조회한 '영수증' (P4 가시화).
+    호출 툴 + 참조한 과거 세션(날짜·결과) + trace id. MCP 미사용(fallback)이면 빈 문자열."""
+    tools, seen = [], set()
+    for t in (mcp_tool_calls or []):
+        if t and t not in seen:
+            seen.add(t)
+            tools.append(t)
+    trace_ids = trace_ids or {}
+    mtid = trace_ids.get("mediator_trace_id")
+    if not tools and not refs:
+        return ""  # introspection 안 함 → 영수증 없음
+
+    q = ""
+    if tools:
+        chips = " · ".join(f"<b>{_esc(t)}</b>" for t in tools)
+        q = f'<div class="rq">Queried {chips}</div>'
+
+    if refs:
+        items = "".join(
+            f'<div class="ritem"><span class="rd">{_esc(r.get("date") or "—")}</span>'
+            f'{_esc(r.get("outcome") or "—")}</div>'
+            for r in refs
+        )
+        body = f'<div class="rlist">{items}</div>'
+        head_n = f'Consulted {len(refs)} past session{"s" if len(refs) != 1 else ""}'
+    else:
+        body = ('<div class="rcold">First session — no history to recall yet. '
+                'Future verdicts will cite your past sessions.</div>')
+        head_n = "No matching past sessions yet"
+
+    trace = (f'<div class="rtrace">trace {_esc(mtid[:10])}… · Phoenix Cloud</div>'
+             if mtid else "")
+    return (
+        '<div class="ff-receipt">'
+        '<div class="rh"><span class="rt">⟲ Mediator’s Receipt</span>'
+        f'<span class="rs">{_esc(head_n)} · introspection via Phoenix MCP</span></div>'
+        f'{q}{body}{trace}'
+        '</div>'
+    )
+
+
 # ---------------------------------------------------------------- mediator verdict
-def verdict_html(consensus: dict[str, Any] | None) -> str:
+def verdict_html(consensus: dict[str, Any] | None,
+                 *,
+                 mcp_tool_calls: list[str] | None = None,
+                 trace_ids: dict[str, Any] | None = None) -> str:
     if not consensus:
         return ""
     text = _esc(consensus.get("consensus", ""))
@@ -266,10 +314,7 @@ def verdict_html(consensus: dict[str, Any] | None) -> str:
         checks += f'<li><span class="num">{order}</span><div>{action}{rat_html}</div></li>'
 
     refs = consensus.get("past_debate_references") or []
-    recall = ""
-    if refs:
-        n = len(refs)
-        recall = f'<div class="ff-recall">⟲ Recalled {n} past session{"s" if n != 1 else ""} — your history shaped this verdict <span style="color:var(--faint)">(Phoenix MCP)</span></div>'
+    receipt = _receipt_html(refs, mcp_tool_calls, trace_ids)
 
     disclaimer = _esc(consensus.get("disclaimer", "This analysis is for informational purposes only. Not medical advice."))
     rcount = consensus.get("round_count_used")
@@ -280,7 +325,7 @@ def verdict_html(consensus: dict[str, Any] | None) -> str:
   <div class="vh"><span class="lbl">VERDICT</span><span class="who">{_esc(who)}</span></div>
   <p>{text}</p>
   <ul class="ff-checks">{checks}</ul>
-  {recall}
+  {receipt}
   <div class="ff-disc">⚠️ {disclaimer}</div>
 </div></div>
 """

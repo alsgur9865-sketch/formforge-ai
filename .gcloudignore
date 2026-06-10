@@ -43,3 +43,5 @@ data/sample_videos/
 *.avi
 # 데모 영웅 스켈레톤 영상은 컨테이너에 COPY 해야 하므로 업로드 컨텍스트에 포함(예외)
 !data/demo_skeleton.mp4
+# 측면(카메라앵글 인지) 데모 스켈레톤 영상도 동일하게 포함(세션24 Front↔Side 토글)
+!data/demo_skeleton_side.mp4
