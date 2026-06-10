@@ -125,6 +125,8 @@ def screen_upload() -> None:
         injuries = st.text_input("Injury history (optional)", placeholder="e.g. left knee pain last year")
         experience = st.selectbox("Experience level", ["beginner", "intermediate", "advanced"], index=1)
         start = st.button("⚡ Run a diagnostic — summon both coaches", type="primary", disabled=file is None)
+        st.caption("⚙ Live runs the real pipeline on Cloud Run + Gemini — a first upload takes about 2-3 min "
+                   "(cold start → 2-round debate → Mediator introspection). Want it instant? Use the teardown below.")
         demo = st.button("Watch a teardown (sample · no cloud)")
         st.markdown(hero.hero_stats_html(), unsafe_allow_html=True)
     with right:
@@ -234,6 +236,9 @@ def screen_debate(debate: dict[str, Any], *, demo: bool = False) -> None:
     elif not demo and status not in DONE:
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=1000, key="debate_poll")
+        st.info("⏱ Analyzing on Cloud Run — about 2-3 min. This is the real multi-agent run: "
+                "pose extraction → two coaches debate → Mediator queries its own past traces. "
+                "The feed updates live below as each coach weighs in — no need to refresh.")
 
     st.markdown(dv.tale_of_the_tape(debate), unsafe_allow_html=True)
 
