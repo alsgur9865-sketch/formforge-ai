@@ -18,8 +18,11 @@ numpy>=1.26.0
 opencv-python>=4.10.0
 Pillow>=10.0.0
 scipy>=1.13.0
-mcp>=1.0.0
-fastmcp>=2.0.0
+# MCP 스택 == 핀: >= 로 두니 빌드 시 fastmcp 3.4.0 드리프트 → ADK 2.1.0 MCPToolset
+#   세션 핸드셰이크 깨짐("Failed to create MCP session" → P4 introspection 실패, graceful).
+#   로컬 e2e 검증 조합으로 고정(fastmcp 3.3.1 → fastmcp-slim==3.3.1 자동 핀, mcp 1.27.1).
+mcp==1.27.1
+fastmcp==3.3.1
 streamlit>=1.39.0
 streamlit-autorefresh>=1.0.1
 python-dotenv>=1.0.0
